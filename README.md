@@ -34,12 +34,12 @@
 1. 拷贝 [`/src/index.js`](https://github.com/sunnypuppy/edgehub/blob/master/src/index.js) 中的代码替换 workers 编辑器中内容，保存并部署。
 2. 配置环境变量
 
-    | 环境变量           | 必须性 | 默认值               | 内容格式                                | 示例                                      |
+    | 环境变量           | 必须 | 默认值              | 内容格式                                | 示例                                      |
     |--------------------|--------|----------------------|-----------------------------------------|-------------------------------------------|
-    | `EDGETUNNEL_UUID`  | 是     | 无                   | 一个唯一的用户 UUID 字符串               | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51`   |
-    | `EDGETUNNEL_HOST`  | 是     | 无                   | 主机名或域名                            | `your.edgetunnel.host.com`               |
-    | `EDGETUNNEL_PATH`  | 否     | `/?ed=2048`          | 代理路径                                | `/vless?ed=2048`                        |
-    | `ADDR_SETS`        | 是     | 无                   | JSON 字符串，包含代理节点的配置信息       | 见下方示例                               |
+    | `EDGETUNNEL_UUID`  | 是     | 无              | 一个唯一的用户 UUID 字符串               | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51`   |
+    | `EDGETUNNEL_HOST`  | 是     | 无              | 主机名或域名                            | `your.edgetunnel.host.com`               |
+    | `EDGETUNNEL_PATH`  | 否     | `/?ed=2048`     | 代理路径                                | `/vless?ed=2048`                        |
+    | `ADDR_SETS`        | 是     | 无              | JSON 字符串，包含代理节点的配置信息       | 见下方示例                               |
 
     **ADDR_SETS 示例值:**
 
