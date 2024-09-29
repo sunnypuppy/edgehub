@@ -34,7 +34,7 @@
 1. 拷贝 [`/src/index.js`](https://github.com/sunnypuppy/edgehub/blob/master/src/index.js) 中的代码替换 workers 编辑器中内容，保存并部署。
 2. 配置环境变量
 
-    | 环境变量           | 必须 | 默认值              | 内容格式                                | 示例                                      |
+    | 环境变量           | 必须     | 默认值              | 内容格式                                | 示例                                      |
     |--------------------|--------|----------------------|-----------------------------------------|-------------------------------------------|
     | `EDGETUNNEL_UUID`  | 是     | 无              | 一个唯一的用户 UUID 字符串               | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51`   |
     | `EDGETUNNEL_HOST`  | 是     | 无              | 主机名或域名                            | `your.edgetunnel.host.com`               |
@@ -93,3 +93,7 @@ http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51
 2. With parameters:
 http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&ipv6=0&cfport=1&base64=1
 ```
+
+## 许可证
+
+此项目采用 [MIT](https://github.com/sunnypuppy/edgehub/blob/master/LICENSE) 许可证。
