@@ -11,8 +11,8 @@ let addrSets = `
     "addresses": [
         "127.0.0.1:8443#localhost_v4",
         "127.0.0.1#localhost_v4_no_port",
-		"[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:443#localhost_v6",
-    	"[2001:0db8:85a3:0000:0000:8a2e:0370:7334]#localhost_v6_no_port" 
+        "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:443#localhost_v6",
+        "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]#localhost_v6_no_port" 
     ],
     "domains": [
         "example.com",
@@ -142,7 +142,7 @@ async function parseNodesFromAddress(addresses) {
 				port: port || '443',
 				name: name || ip
 			};
-			allNodes.push(node); // 将节点对象添加到数组中
+			allNodes.push(node);
 		}
 	});
 
@@ -170,7 +170,7 @@ async function parseNodesFromDomain(domains) {
 
 function getUsage(request) {
 	const url = new URL(request.url);
-	const currentHost = url.host; // 获取当前的访问域名
+	const currentHost = url.host;
 
 	return `
 Usage: Please use the following format to access the subscription:
