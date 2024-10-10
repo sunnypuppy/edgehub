@@ -36,7 +36,7 @@ export default {
 		addrSets = env.ADDR_SETS || addrSets;
 
 		const options = {
-			ipv6: url.searchParams.get('ipv6') || '0', // default filter ipv6 nodes
+			addrtype: url.searchParams.get('addrtype'),
 			cfport: url.searchParams.get('cfport'),
 			base64: url.searchParams.get('base64')
 		}
@@ -72,12 +72,33 @@ async function getSubConfig(options) {
 		if (cfHTTPPorts.has(node.port)) return false;
 
 		if (options.cfport === '1' && !cfHTTPSPorts.has(node.port)) return false;
-		if (options.ipv6 === '0' && node.address.includes(':')) return false;
+		if (options.addrtype) {
+			const addressType = getAddressType(node.address);
+			if (options.addrtype === 'v6' && addressType !== 'ipv6') return false;
+			if (options.addrtype === 'v4' && addressType !== 'ipv4') return false;
+			if (options.addrtype === 'domain' && addressType !== 'domain') return false;
+			if (options.addrtype === 'ip' && addressType === 'domain') return false;
+		}
+
 		return true;
 	});
 
 	const configs = await Promise.all(filteredNodes.map(node => getSubConfigTemplate(node)));
 	return options.base64 === '0' ? configs.join('\n') : btoa(configs.join('\n'));
+}
+
+function getAddressType(address) {
+	const ipv4Regex = /^(25[0-5]|(2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|(2[0-4][0-9]|[01]?[0-9][0-9]?))$/;
+
+	if (ipv4Regex.test(address)) {
+		return 'ipv4';
+	}
+
+	if (address.includes(':')) {
+		return 'ipv6';
+	}
+
+	return 'domain';
 }
 
 function getSubConfigTemplate(node) {
@@ -183,8 +204,13 @@ Supported URL parameters:
     The domain of your edgetunnel.
 - path (optional)
     Path to specify custom path for your edgetunnel (default is /?ed=2048 ).
-- ipv6 (optional)
-    Specify if IPv6 addresses should be return (1 for yes, 0 for no, default is 0).
+- addrtype (optional)
+    Specify which address types to return (default is return all types):
+    - (empty) : return all address types (ipv4, ipv6, and domain names).
+    - v6      : return only ipv6 addresses.
+    - v4      : return only ipv4 addresses.
+    - domain  : return only domain names.
+    - ip      : return both ipv4 and ipv6 addresses, but no domain names.
 - cfport (optional)
     Specify if only return cloudflare standard ports (1 for yes, 0 for no, default is 0).
 - base64 (optional)
@@ -196,7 +222,7 @@ Example usage:
    ${url.protocol}//${currentHost}/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51
 
 2. With parameters:
-   ${url.protocol}//${currentHost}/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&ipv6=0&cfport=1&base64=1
+   ${url.protocol}//${currentHost}/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&addrtype=ip&cfport=1&base64=1
 
     `.trim();
 }
