@@ -72,13 +72,7 @@ async function getSubConfig(options) {
 		if (cfHTTPPorts.has(node.port)) return false;
 
 		if (options.cfport === '1' && !cfHTTPSPorts.has(node.port)) return false;
-		if (options.addrtype) {
-			const addressType = getAddressType(node.address);
-			if (options.addrtype === 'v6' && addressType !== 'ipv6') return false;
-			if (options.addrtype === 'v4' && addressType !== 'ipv4') return false;
-			if (options.addrtype === 'domain' && addressType !== 'domain') return false;
-			if (options.addrtype === 'ip' && addressType === 'domain') return false;
-		}
+		if (options.addrtype && !options.addrtype.split(',').includes(getAddressType(node.address))) return false;
 
 		return true;
 	});
@@ -206,11 +200,8 @@ Supported URL parameters:
     Path to specify custom path for your edgetunnel (default is /?ed=2048 ).
 - addrtype (optional)
     Specify which address types to return (default is return all types):
-    - (empty) : return all address types (ipv4, ipv6, and domain names).
-    - v6      : return only ipv6 addresses.
-    - v4      : return only ipv4 addresses.
-    - domain  : return only domain names.
-    - ip      : return both ipv4 and ipv6 addresses, but no domain names.
+    - (empty)      : return all address types (ipv4, ipv6, and domain).
+    - Combinations : You can combine values, e.g., 'ipv4,ipv6' to return both IPv4 and IPv6 addresses.
 - cfport (optional)
     Specify if only return cloudflare standard ports (1 for yes, 0 for no, default is 0).
 - base64 (optional)
