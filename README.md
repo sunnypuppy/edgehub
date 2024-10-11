@@ -78,8 +78,13 @@ Supported URL parameters:
     The domain of your edgetunnel.
 - path (optional)
     Path to specify custom path for your edgetunnel (default is /?ed=2048 ).
-- ipv6 (optional)
-    Specify if IPv6 addresses should be return (1 for yes, 0 for no, default is 0).
+- addrtype (optional)
+    Specify which address types to return (default is return all types):
+    - (empty) : return all address types (ipv4, ipv6, and domain names).
+    - v6      : return only ipv6 addresses.
+    - v4      : return only ipv4 addresses.
+    - domain  : return only domain names.
+    - ip      : return both ipv4 and ipv6 addresses, but no domain names.
 - cfport (optional)
     Specify if only return cloudflare standard ports (1 for yes, 0 for no, default is 0).
 - base64 (optional)
@@ -88,10 +93,10 @@ Supported URL parameters:
 Example usage:
 
 1. Basic subscription:
-http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51
+   http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51
 
 2. With parameters:
-http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&ipv6=0&cfport=1&base64=1
+   http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&addrtype=ip&cfport=1&base64=1
 ```
 
 ## 许可证
