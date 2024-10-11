@@ -67,38 +67,6 @@
 
 部署完成后，访问 `https://your-domain` 地址可查看接口使用方式。
 
-```
-Usage: Please use the following format to access the subscription:
-
-    http://localhost:8787/sub/{your-edgetunnel-uuid}
-
-Supported URL parameters:
-
-- host
-    The domain of your edgetunnel.
-- path (optional)
-    Path to specify custom path for your edgetunnel (default is /?ed=2048 ).
-- addrtype (optional)
-    Specify which address types to return (default is return all types):
-    - (empty) : return all address types (ipv4, ipv6, and domain names).
-    - v6      : return only ipv6 addresses.
-    - v4      : return only ipv4 addresses.
-    - domain  : return only domain names.
-    - ip      : return both ipv4 and ipv6 addresses, but no domain names.
-- cfport (optional)
-    Specify if only return cloudflare standard ports (1 for yes, 0 for no, default is 0).
-- base64 (optional)
-    Specify if the output should be base64 encoded (1 for yes, 0 for no, default is 1).
-
-Example usage:
-
-1. Basic subscription:
-   http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51
-
-2. With parameters:
-   http://localhost:8787/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&addrtype=ip&cfport=1&base64=1
-```
-
 ## 许可证
 
 此项目采用 [MIT](https://github.com/sunnypuppy/edgehub/blob/master/LICENSE) 许可证。
