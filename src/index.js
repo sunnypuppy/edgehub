@@ -177,7 +177,7 @@ function getSingBoxSubConfigTemplate(nodes) {
 				uuid: edgetunnelUUID,
 				transport: {
 					type: 'ws',
-					path: encodeURIComponent(edgetunnelPATH),
+					path: edgetunnelPATH,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
 					headers: { host: edgetunnelHost },
@@ -229,7 +229,7 @@ function getSingBoxSubConfigTemplate(nodes) {
 					uuid: edgetunnelUUID,
 					transport: {
 						type: 'ws',
-						path: encodeURIComponent(edgetunnelPATH),
+						path: edgetunnelPATH,
 						max_early_data: 2048,
 						early_data_header_name: 'Sec-WebSocket-Protocol',
 						headers: { host: edgetunnelHost },
