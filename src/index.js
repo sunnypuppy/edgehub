@@ -169,6 +169,24 @@ function getSingBoxSubConfigTemplate(nodes) {
 		outbounds: [
 			{ type: 'direct', tag: 'direct' },
 			{ type: 'dns', tag: 'dns-out' },
+			{
+				type: 'vless',
+				tag: 'edgetunnel',
+				server: edgetunnelHost,
+				server_port: 443,
+				uuid: edgetunnelUUID,
+				transport: {
+					type: 'ws',
+					path: encodeURIComponent(edgetunnelPATH),
+					max_early_data: 2048,
+					early_data_header_name: 'Sec-WebSocket-Protocol',
+					headers: { host: edgetunnelHost },
+				},
+				tls: {
+					enabled: true,
+					server_name: edgetunnelHost,
+				},
+			},
 		],
 		route: {
 			rules: [
