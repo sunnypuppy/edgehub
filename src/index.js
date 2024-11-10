@@ -38,8 +38,9 @@ export default {
 		const options = {
 			addrtype: url.searchParams.get('addrtype'),
 			cfport: url.searchParams.get('cfport'),
-			base64: url.searchParams.get('base64')
-		}
+			base64: url.searchParams.get('base64'),
+			clienttype: url.searchParams.get('client'),
+		};
 
 		switch (url.pathname) {
 			case `/sub/${edgetunnelUUID}`: // uuid as the default sub passwd
@@ -56,18 +57,18 @@ async function getSubConfig(options) {
 
 	if (rawAddr.links && rawAddr.links.length > 0) {
 		const nodesFromLinks = await parseNodesFromSubLink(rawAddr.links);
-		nodesFromLinks.forEach(node => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+		nodesFromLinks.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
 	}
 	if (rawAddr.addresses && rawAddr.addresses.length > 0) {
 		const nodesFromAddresses = await parseNodesFromAddress(rawAddr.addresses);
-		nodesFromAddresses.forEach(node => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+		nodesFromAddresses.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
 	}
 	if (rawAddr.domains && rawAddr.domains.length > 0) {
 		const nodesFromDomains = await parseNodesFromDomain(rawAddr.domains);
-		nodesFromDomains.forEach(node => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+		nodesFromDomains.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
 	}
 
-	const filteredNodes = Array.from(uniqueNodes.values()).filter(node => {
+	const filteredNodes = Array.from(uniqueNodes.values()).filter((node) => {
 		// force filter http prot
 		if (cfHTTPPorts.has(node.port)) return false;
 
@@ -77,8 +78,15 @@ async function getSubConfig(options) {
 		return true;
 	});
 
-	const configs = await Promise.all(filteredNodes.map(node => getSubConfigTemplate(node)));
-	return options.base64 === '0' ? configs.join('\n') : btoa(configs.join('\n'));
+	switch (options.clienttype) {
+		case 'singbox':
+			return getSingBoxSubConfigTemplate(filteredNodes);
+
+		default:
+			// v2ray
+			const configs = await Promise.all(filteredNodes.map((node) => getSubConfigTemplate(node)));
+			return options.base64 === '0' ? configs.join('\n') : btoa(configs.join('\n'));
+	}
 }
 
 function getAddressType(address) {
@@ -112,6 +120,134 @@ function getSubConfigTemplate(node) {
 	}
 }
 
+function getSingBoxSubConfigTemplate(nodes) {
+	// Base configuration template
+	const config = {
+		log: {
+			disabled: false,
+			level: 'info',
+			timestamp: true,
+		},
+		dns: {
+			servers: [
+				{ tag: 'dns_proxy', address: 'tls://1.1.1.1', address_resolver: 'dns_resolver' },
+				{ tag: 'dns_direct', address: 'h3://dns.alidns.com/dns-query', address_resolver: 'dns_resolver', detour: 'direct' },
+				{ tag: 'dns_resolver', address: '223.5.5.5', detour: 'direct' },
+				{ tag: 'dns_fakeip', address: 'fakeip' },
+				{ tag: 'dns_block', address: 'rcode://success' },
+			],
+			rules: [
+				{ outbound: 'any', server: 'dns_resolver' },
+				{ geosite: 'category-ads-all', server: 'dns_block', disable_cache: true },
+				{ geosite: 'geolocation-!cn', query_type: ['A', 'AAAA'], server: 'dns_fakeip' },
+				{ geosite: 'geolocation-!cn', server: 'dns_proxy' },
+			],
+			final: 'dns_direct',
+			strategy: 'prefer_ipv4',
+			independent_cache: true,
+			fakeip: { enabled: true, inet4_range: '198.18.0.0/15', inet6_range: 'fc00::/18' },
+		},
+		ntp: {
+			enabled: true,
+			server: 'time.apple.com',
+			server_port: 123,
+			interval: '30m',
+			detour: 'direct',
+		},
+		inbounds: [
+			{ type: 'mixed', tag: 'mixed-in', listen: '0.0.0.0', listen_port: 2080 },
+			{
+				type: 'tun',
+				tag: 'tun-in',
+				address: ['172.18.0.1/30', 'fdfe:dcba:9876::1/126'],
+				auto_route: true,
+				strict_route: true,
+				stack: 'mixed',
+				sniff: true,
+			},
+		],
+		outbounds: [
+			{ type: 'direct', tag: 'direct' },
+			{ type: 'dns', tag: 'dns-out' },
+		],
+		route: {
+			rules: [
+				{ protocol: 'dns', outbound: 'dns-out' },
+				{ ip_is_private: true, outbound: 'direct' },
+				{ rule_set: ['geoip-cn', 'geosite-cn'], outbound: 'direct' },
+			],
+			rule_set: [
+				{
+					tag: 'geoip-cn',
+					type: 'remote',
+					format: 'binary',
+					url: 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs',
+					download_detour: '节点选择',
+				},
+				{
+					tag: 'geosite-cn',
+					type: 'remote',
+					format: 'binary',
+					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs',
+					download_detour: '节点选择',
+				},
+			],
+			final: '节点选择',
+			auto_detect_interface: true,
+		},
+	};
+
+	// Add each node as an outbound entry
+	nodes.forEach((node) => {
+		const finalAddress = node.address || edgetunnelHost;
+		const finalPort = node.port || 443;
+		switch (node.protocol) {
+			case 'vless':
+				config.outbounds.push({
+					type: node.protocol,
+					tag: node.name,
+					server: finalAddress,
+					server_port: parseInt(finalPort, 10),
+					uuid: edgetunnelUUID,
+					transport: {
+						type: 'ws',
+						path: encodeURIComponent(edgetunnelPATH),
+						max_early_data: 2048,
+						early_data_header_name: 'Sec-WebSocket-Protocol',
+						headers: { host: edgetunnelHost },
+					},
+					tls: {
+						enabled: true,
+						server_name: edgetunnelHost,
+					},
+				});
+				break;
+			case 'trojan':
+				break;
+			default:
+				break;
+		}
+	});
+
+	// Add a selector outbound for dynamic node selection
+	config.outbounds.push({
+		type: 'selector',
+		tag: '节点选择',
+		outbounds: ['自动选择', 'edgetunnel', 'direct'],
+	});
+
+	// Add a urltest outbound for optimal domain selection
+	config.outbounds.push({
+		type: 'urltest',
+		tag: '自动选择',
+		outbounds: nodes.map((node) => node.name),
+		interrupt_exist_connections: false,
+	});
+
+	// Return JSON string of configuration
+	return JSON.stringify(config, null, 4);
+}
+
 async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 	const regex = /(vless|trojan):\/\/.*?@((?:\d{1,3}\.){3}\d{1,3}|\[?[0-9a-fA-F:]+\]?)(?::(\d+))?.*?#(.*)/;
 	const allNodes = [];
@@ -119,8 +255,10 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 	async function fetchAndParse(link) {
 		try {
 			const response = await fetch(link);
-			const lines = atob(await response.text()).trim().split('\n');
-			lines.forEach(line => {
+			const lines = atob(await response.text())
+				.trim()
+				.split('\n');
+			lines.forEach((line) => {
 				const match = line.match(regex);
 				if (!match) return;
 				const [_, protocol, address, port, name] = match;
@@ -134,7 +272,7 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 	// Limit concurrent fetches
 	const pool = [];
 	for (let i = 0; i < links.length; i += concurrencyLimit) {
-		const batch = links.slice(i, i + concurrencyLimit).map(link => fetchAndParse(link));
+		const batch = links.slice(i, i + concurrencyLimit).map((link) => fetchAndParse(link));
 		pool.push(Promise.all(batch)); // Process batch in parallel
 	}
 
@@ -147,7 +285,7 @@ async function parseNodesFromAddress(addresses) {
 	const allNodes = [];
 
 	const regex = /^(?<ip>(\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\])(:(?<port>\d+))?(#(?<name>.*))?$/;
-	addresses.forEach(address => {
+	addresses.forEach((address) => {
 		const match = address.match(regex);
 		if (match) {
 			const { ip, port, name } = match.groups;
@@ -155,7 +293,7 @@ async function parseNodesFromAddress(addresses) {
 				protocol: 'vless',
 				address: ip,
 				port: port || '443',
-				name: name || ip
+				name: name || ip,
 			};
 			allNodes.push(node);
 		}
@@ -167,14 +305,14 @@ async function parseNodesFromAddress(addresses) {
 async function parseNodesFromDomain(domains) {
 	const allNodes = [];
 
-	domains.forEach(domain => {
+	domains.forEach((domain) => {
 		const [domainPart, portPart] = domain.split(':');
 
 		const node = {
 			protocol: 'vless',
 			address: domainPart,
 			port: portPart || '443',
-			name: domainPart
+			name: domainPart,
 		};
 
 		allNodes.push(node);
