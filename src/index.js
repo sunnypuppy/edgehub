@@ -443,6 +443,8 @@ Supported URL parameters:
     The domain of your edgetunnel.
 - path (optional)
     Path to specify custom path for your edgetunnel (default is /?ed=2048 ).
+- protocol (optional)
+    Specify used protocol types of your edgetunnel (vless or trojan, default is vless).
 - addrtype (optional)
     Specify which address types to return (default is return all types):
     - (empty)      : return all address types (ipv4, ipv6, and domain).
