@@ -1,6 +1,7 @@
 let edgetunnelUUID = '9e57b9c1-79ce-4004-a8ea-5a8e804fda51';
 let edgetunnelHost = 'your.edgetunnel.host.com';
 let edgetunnelPATH = '/?ed=2048';
+let edgetunnelProtocol = 'vless';
 
 let addrSets = `
 {
@@ -32,6 +33,7 @@ export default {
 		edgetunnelUUID = env.EDGETUNNEL_UUID || edgetunnelUUID;
 		edgetunnelHost = url.searchParams.get('host') || env.EDGETUNNEL_HOST || edgetunnelHost;
 		edgetunnelPATH = url.searchParams.get('path') || env.EDGETUNNEL_PATH || edgetunnelPATH;
+		edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
 		addrSets = env.ADDR_SETS || addrSets;
 
@@ -79,7 +81,7 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 				const match = line.match(regex);
 				if (!match) return;
 				const [_, protocol, address, port, name] = match;
-				allNodes.push({ protocol, address: address.trim().replace(/^\[|\]$/g, ''), port, name });
+				allNodes.push({ protocol: edgetunnelProtocol, address: address.trim().replace(/^\[|\]$/g, ''), port, name });
 			});
 		} catch (error) {
 			console.log(`Error fetching or parsing link: ${link}`);
@@ -92,7 +94,6 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 		const batch = links.slice(i, i + concurrencyLimit).map((link) => fetchAndParse(link));
 		pool.push(Promise.all(batch)); // Process batch in parallel
 	}
-
 	await Promise.all(pool);
 
 	const uniqueNodes = new Map();
@@ -100,7 +101,7 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 	return Array.from(uniqueNodes.values());
 }
 
-async function parseNodesFromAddress(addresses) {
+function parseNodesFromAddress(addresses) {
 	const allNodes = [];
 
 	const regex = /^(?<ip>(\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\])(:(?<port>\d+))?(#(?<name>.*))?$/;
@@ -109,7 +110,7 @@ async function parseNodesFromAddress(addresses) {
 		if (match) {
 			const { ip, port, name } = match.groups;
 			const node = {
-				protocol: 'vless',
+				protocol: edgetunnelProtocol,
 				address: ip,
 				port: port || '443',
 				name: name || ip,
@@ -121,14 +122,14 @@ async function parseNodesFromAddress(addresses) {
 	return allNodes;
 }
 
-async function parseNodesFromDomain(domains) {
+function parseNodesFromDomain(domains) {
 	const allNodes = [];
 
 	domains.forEach((domain) => {
 		const [domainPart, portPart] = domain.split(':');
 
 		const node = {
-			protocol: 'vless',
+			protocol: edgetunnelProtocol,
 			address: domainPart,
 			port: portPart || '443',
 			name: domainPart,
@@ -183,10 +184,10 @@ async function getSubConfig(options) {
 		nodesFromLinks = await parseNodesFromSubLink(rawAddr.links);
 	}
 	if (rawAddr.addresses && rawAddr.addresses.length > 0) {
-		nodesFromAddresses = await parseNodesFromAddress(rawAddr.addresses);
+		nodesFromAddresses = parseNodesFromAddress(rawAddr.addresses);
 	}
 	if (rawAddr.domains && rawAddr.domains.length > 0) {
-		nodesFromDomains = await parseNodesFromDomain(rawAddr.domains);
+		nodesFromDomains = parseNodesFromDomain(rawAddr.domains);
 	}
 
 	switch (options.clienttype) {
@@ -228,6 +229,51 @@ async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		})
 	);
 	return options.base64 === '0' ? configs.join('\n') : btoa(configs.join('\n'));
+}
+
+function node2SingBoxOutbound(node) {
+	switch (node.protocol) {
+		case 'vless':
+			return {
+				type: node.protocol,
+				tag: node.name,
+				server: node.address,
+				server_port: parseInt(node.port, 10),
+				uuid: edgetunnelUUID,
+				tls: {
+					enabled: true,
+					server_name: edgetunnelHost,
+				},
+				transport: {
+					type: 'ws',
+					path: edgetunnelPATH,
+					max_early_data: 2048,
+					early_data_header_name: 'Sec-WebSocket-Protocol',
+					headers: { host: edgetunnelHost },
+				},
+			};
+		case 'trojan':
+			return {
+				type: 'trojan',
+				tag: node.name,
+				server: node.address,
+				server_port: parseInt(node.port, 10),
+				password: edgetunnelUUID,
+				tls: {
+					enabled: true,
+					server_name: edgetunnelHost,
+				},
+				transport: {
+					type: 'ws',
+					path: edgetunnelPATH,
+					max_early_data: 2048,
+					early_data_header_name: 'Sec-WebSocket-Protocol',
+					headers: { host: edgetunnelHost },
+				},
+			};
+		default:
+			break;
+	}
 }
 
 async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains) {
@@ -279,24 +325,7 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		outbounds: [
 			{ type: 'direct', tag: 'direct' },
 			{ type: 'dns', tag: 'dns-out' },
-			{
-				type: 'vless',
-				tag: 'edgetunnel',
-				server: edgetunnelHost,
-				server_port: 443,
-				uuid: edgetunnelUUID,
-				transport: {
-					type: 'ws',
-					path: edgetunnelPATH,
-					max_early_data: 2048,
-					early_data_header_name: 'Sec-WebSocket-Protocol',
-					headers: { host: edgetunnelHost },
-				},
-				tls: {
-					enabled: true,
-					server_name: edgetunnelHost,
-				},
-			},
+			node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
 		],
 		route: {
 			rules: [
@@ -325,142 +354,75 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		},
 	};
 
-	// =======================================
 	const domain_outbounds = [];
-	nodesFromDomains.forEach((node) => {
-		switch (node.protocol) {
-			case 'vless':
-				domain_outbounds.push({
-					type: node.protocol,
-					tag: node.name,
-					server: node.address,
-					server_port: parseInt(node.port, 10),
-					uuid: edgetunnelUUID,
-					transport: {
-						type: 'ws',
-						path: edgetunnelPATH,
-						max_early_data: 2048,
-						early_data_header_name: 'Sec-WebSocket-Protocol',
-						headers: { host: edgetunnelHost },
-					},
-					tls: {
-						enabled: true,
-						server_name: edgetunnelHost,
-					},
-				});
-				break;
-			case 'trojan':
-				break;
-			default:
-				break;
-		}
-	});
+	nodesFromDomains.forEach((node) => domain_outbounds.push(node2SingBoxOutbound(node)));
 	singboxSubConfig.outbounds.push(...domain_outbounds);
 
-	const address_outbounds = [];
-	const addressIPGeolocationMap = new Map(
-		(await batchQueryIPGeolocation(nodesFromAddresses.map((node) => node.address))).map((node) => [node.query, node])
+	const ipGeolocationMap = new Map(
+		(await batchQueryIPGeolocation([...nodesFromAddresses.map((node) => node.address), ...nodesFromLinks.map((node) => node.address)])).map(
+			(node) => [node.query, node]
+		)
 	);
+
+	const address_outbounds = [];
 	nodesFromAddresses.forEach((node) => {
-		const ipGeo = addressIPGeolocationMap.get(node.address);
+		const ipGeo = ipGeolocationMap.get(node.address);
 		if (ipGeo && ipGeo.status === 'success') {
 			node.name = `${ipGeo.countryCode}_${node.address}`;
-		}
-		switch (node.protocol) {
-			case 'vless':
-				address_outbounds.push({
-					type: node.protocol,
-					tag: node.name,
-					server: node.address,
-					server_port: parseInt(node.port, 10),
-					uuid: edgetunnelUUID,
-					transport: {
-						type: 'ws',
-						path: edgetunnelPATH,
-						max_early_data: 2048,
-						early_data_header_name: 'Sec-WebSocket-Protocol',
-						headers: { host: edgetunnelHost },
-					},
-					tls: {
-						enabled: true,
-						server_name: edgetunnelHost,
-					},
-				});
-				break;
-			case 'trojan':
-				break;
-			default:
-				break;
+			address_outbounds.push(node2SingBoxOutbound(node));
 		}
 	});
 	singboxSubConfig.outbounds.push(...address_outbounds);
 
 	const link_outbounds = [];
-	const linkIPGeolocationMap = new Map(
-		(await batchQueryIPGeolocation(nodesFromLinks.map((node) => node.address))).map((node) => [node.query, node])
-	);
 	nodesFromLinks.forEach((node) => {
-		const ipGeo = linkIPGeolocationMap.get(node.address);
+		const ipGeo = ipGeolocationMap.get(node.address);
 		if (ipGeo && ipGeo.status === 'success') {
 			node.name = `${ipGeo.countryCode}_${node.address}`;
-		}
-		switch (node.protocol) {
-			case 'vless':
-				link_outbounds.push({
-					type: node.protocol,
-					tag: node.name,
-					server: node.address,
-					server_port: parseInt(node.port, 10),
-					uuid: edgetunnelUUID,
-					transport: {
-						type: 'ws',
-						path: edgetunnelPATH,
-						max_early_data: 2048,
-						early_data_header_name: 'Sec-WebSocket-Protocol',
-						headers: { host: edgetunnelHost },
-					},
-					tls: {
-						enabled: true,
-						server_name: edgetunnelHost,
-					},
-				});
-				break;
-			case 'trojan':
-				break;
-			default:
-				break;
+			link_outbounds.push(node2SingBoxOutbound(node));
 		}
 	});
 	singboxSubConfig.outbounds.push(...link_outbounds);
 
-	// =======================================
-
+	const selector_outbounds = [];
 	singboxSubConfig.outbounds.push({
 		type: 'selector',
 		tag: '节点选择',
-		outbounds: ['优选域名', '优选IP', '第三方优选', 'edgetunnel', 'direct'],
+		outbounds: selector_outbounds,
 	});
 
-	singboxSubConfig.outbounds.push({
-		type: 'urltest',
-		tag: '优选域名',
-		outbounds: domain_outbounds.map((outbound) => outbound.tag),
-		interrupt_exist_connections: false,
-	});
+	if (domain_outbounds.length > 0) {
+		singboxSubConfig.outbounds.push({
+			type: 'urltest',
+			tag: '优选域名',
+			outbounds: domain_outbounds.map((outbound) => outbound.tag),
+			interrupt_exist_connections: false,
+		});
+		selector_outbounds.push('优选域名');
+	}
 
-	singboxSubConfig.outbounds.push({
-		type: 'urltest',
-		tag: '优选IP',
-		outbounds: address_outbounds.map((outbound) => outbound.tag),
-		interrupt_exist_connections: false,
-	});
+	if (address_outbounds.length > 0) {
+		singboxSubConfig.outbounds.push({
+			type: 'urltest',
+			tag: '优选IP',
+			outbounds: address_outbounds.map((outbound) => outbound.tag),
+			interrupt_exist_connections: false,
+		});
+		selector_outbounds.push('优选IP');
+	}
 
-	singboxSubConfig.outbounds.push({
-		type: 'urltest',
-		tag: '第三方优选',
-		outbounds: link_outbounds.map((outbound) => outbound.tag),
-		interrupt_exist_connections: false,
-	});
+	if (link_outbounds.length > 0) {
+		singboxSubConfig.outbounds.push({
+			type: 'urltest',
+			tag: '第三方优选',
+			outbounds: link_outbounds.map((outbound) => outbound.tag),
+			interrupt_exist_connections: false,
+		});
+		selector_outbounds.push('第三方优选');
+	}
+
+	selector_outbounds.push('edgetunnel');
+	selector_outbounds.push('direct');
 
 	// Return JSON string of configuration
 	return JSON.stringify(singboxSubConfig, null, 4);
