@@ -11,6 +11,7 @@
 - 生成适用于多种客户端的订阅链接
     - V2BOX
     - Hiddify
+    - Sing-box (增加 client=singbox 请求参数)
 
 ## 本地部署
 

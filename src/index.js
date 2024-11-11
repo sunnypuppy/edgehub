@@ -51,44 +51,6 @@ export default {
 	},
 };
 
-async function getSubConfig(options) {
-	const uniqueNodes = new Map();
-	const rawAddr = JSON.parse(addrSets);
-
-	if (rawAddr.links && rawAddr.links.length > 0) {
-		const nodesFromLinks = await parseNodesFromSubLink(rawAddr.links);
-		nodesFromLinks.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
-	}
-	if (rawAddr.addresses && rawAddr.addresses.length > 0) {
-		const nodesFromAddresses = await parseNodesFromAddress(rawAddr.addresses);
-		nodesFromAddresses.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
-	}
-	if (rawAddr.domains && rawAddr.domains.length > 0) {
-		const nodesFromDomains = await parseNodesFromDomain(rawAddr.domains);
-		nodesFromDomains.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
-	}
-
-	const filteredNodes = Array.from(uniqueNodes.values()).filter((node) => {
-		// force filter http prot
-		if (cfHTTPPorts.has(node.port)) return false;
-
-		if (options.cfport === '1' && !cfHTTPSPorts.has(node.port)) return false;
-		if (options.addrtype && !options.addrtype.split(',').includes(getAddressType(node.address))) return false;
-
-		return true;
-	});
-
-	switch (options.clienttype) {
-		case 'singbox':
-			return getSingBoxSubConfigTemplate(filteredNodes);
-
-		default:
-			// v2ray
-			const configs = await Promise.all(filteredNodes.map((node) => getSubConfigTemplate(node)));
-			return options.base64 === '0' ? configs.join('\n') : btoa(configs.join('\n'));
-	}
-}
-
 function getAddressType(address) {
 	const ipv4Regex = /^((\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])\.){3}(\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])$/;
 
@@ -103,26 +65,174 @@ function getAddressType(address) {
 	return 'domain';
 }
 
-function getSubConfigTemplate(node) {
-	const finalAddress = node.address || edgetunnelHost;
-	const finalPort = node.port || 443;
+async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
+	const regex = /(vless|trojan):\/\/.*?@((?:\d{1,3}\.){3}\d{1,3}|\[?[0-9a-fA-F:]+\]?)(?::(\d+))?.*?#(.*)/;
+	const allNodes = [];
 
-	const commonParams = `?security=tls&sni=${edgetunnelHost}&fp=random&alpn=h3&type=ws&path=${encodeURIComponent(edgetunnelPATH)}`;
-	const userInfo = `${edgetunnelUUID}${atob('QA==')}${finalAddress}:${finalPort}`;
+	async function fetchAndParse(link) {
+		try {
+			const response = await fetch(link);
+			const lines = atob(await response.text())
+				.trim()
+				.split('\n');
+			lines.forEach((line) => {
+				const match = line.match(regex);
+				if (!match) return;
+				const [_, protocol, address, port, name] = match;
+				allNodes.push({ protocol, address: address.trim().replace(/^\[|\]$/g, ''), port, name });
+			});
+		} catch (error) {
+			console.log(`Error fetching or parsing link: ${link}`);
+		}
+	}
 
-	switch (node.protocol) {
-		case 'vless':
-			return `${node.protocol}://${userInfo}${commonParams}&encryption=none&host=${edgetunnelHost}#${node.name}`;
-		case 'trojan':
-			return `${node.protocol}://${userInfo}${commonParams}#${node.name}`;
+	// Limit concurrent fetches
+	const pool = [];
+	for (let i = 0; i < links.length; i += concurrencyLimit) {
+		const batch = links.slice(i, i + concurrencyLimit).map((link) => fetchAndParse(link));
+		pool.push(Promise.all(batch)); // Process batch in parallel
+	}
+
+	await Promise.all(pool);
+
+	const uniqueNodes = new Map();
+	allNodes.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+	return Array.from(uniqueNodes.values());
+}
+
+async function parseNodesFromAddress(addresses) {
+	const allNodes = [];
+
+	const regex = /^(?<ip>(\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\])(:(?<port>\d+))?(#(?<name>.*))?$/;
+	addresses.forEach((address) => {
+		const match = address.match(regex);
+		if (match) {
+			const { ip, port, name } = match.groups;
+			const node = {
+				protocol: 'vless',
+				address: ip,
+				port: port || '443',
+				name: name || ip,
+			};
+			allNodes.push(node);
+		}
+	});
+
+	return allNodes;
+}
+
+async function parseNodesFromDomain(domains) {
+	const allNodes = [];
+
+	domains.forEach((domain) => {
+		const [domainPart, portPart] = domain.split(':');
+
+		const node = {
+			protocol: 'vless',
+			address: domainPart,
+			port: portPart || '443',
+			name: domainPart,
+		};
+
+		allNodes.push(node);
+	});
+
+	return allNodes;
+}
+
+async function batchQueryIPGeolocation(ipList) {
+	const url = 'http://ip-api.com/batch';
+	const MAX_BATCH_SIZE = 100; // Maximum IPs per request
+
+	async function fetchBatch(batch) {
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(batch),
+		});
+
+		if (!response.ok) throw new Error('Failed to fetch IP data');
+
+		return await response.json();
+	}
+
+	// Split the IP list into chunks of 100
+	const batches = [];
+	for (let i = 0; i < ipList.length; i += MAX_BATCH_SIZE) {
+		batches.push(ipList.slice(i, i + MAX_BATCH_SIZE));
+	}
+
+	// Fetch all batches and combine results
+	const results = [];
+	for (const batch of batches) {
+		const batchResult = await fetchBatch(batch);
+		results.push(...batchResult);
+	}
+
+	return results;
+}
+
+async function getSubConfig(options) {
+	const rawAddr = JSON.parse(addrSets);
+
+	let nodesFromLinks = [];
+	let nodesFromAddresses = [];
+	let nodesFromDomains = [];
+
+	if (rawAddr.links && rawAddr.links.length > 0) {
+		nodesFromLinks = await parseNodesFromSubLink(rawAddr.links);
+	}
+	if (rawAddr.addresses && rawAddr.addresses.length > 0) {
+		nodesFromAddresses = await parseNodesFromAddress(rawAddr.addresses);
+	}
+	if (rawAddr.domains && rawAddr.domains.length > 0) {
+		nodesFromDomains = await parseNodesFromDomain(rawAddr.domains);
+	}
+
+	switch (options.clienttype) {
+		case 'singbox':
+			return getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains);
+
 		default:
-			return '';
+			return getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains);
 	}
 }
 
-function getSingBoxSubConfigTemplate(nodes) {
+async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains) {
+	const uniqueNodes = new Map();
+
+	nodesFromLinks.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+	nodesFromAddresses.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+	nodesFromDomains.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+
+	const filteredNodes = Array.from(uniqueNodes.values()).filter((node) => {
+		if (cfHTTPPorts.has(node.port)) return false;
+		if (options.cfport === '1' && !cfHTTPSPorts.has(node.port)) return false;
+		if (options.addrtype && !options.addrtype.split(',').includes(getAddressType(node.address))) return false;
+		return true;
+	});
+
+	const configs = await Promise.all(
+		filteredNodes.map((node) => {
+			const commonParams = `?security=tls&sni=${edgetunnelHost}&fp=random&alpn=h3&type=ws&path=${encodeURIComponent(edgetunnelPATH)}`;
+			const userInfo = `${edgetunnelUUID}${atob('QA==')}${node.address}:${node.port}`;
+
+			switch (node.protocol) {
+				case 'vless':
+					return `${node.protocol}://${userInfo}${commonParams}&encryption=none&host=${edgetunnelHost}#${node.name}`;
+				case 'trojan':
+					return `${node.protocol}://${userInfo}${commonParams}#${node.name}`;
+				default:
+					return '';
+			}
+		})
+	);
+	return options.base64 === '0' ? configs.join('\n') : btoa(configs.join('\n'));
+}
+
+async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains) {
 	// Base configuration template
-	const config = {
+	const singboxSubConfig = {
 		log: {
 			disabled: false,
 			level: 'info',
@@ -215,17 +325,16 @@ function getSingBoxSubConfigTemplate(nodes) {
 		},
 	};
 
-	// Add each node as an outbound entry
-	nodes.forEach((node) => {
-		const finalAddress = node.address || edgetunnelHost;
-		const finalPort = node.port || 443;
+	// =======================================
+	const domain_outbounds = [];
+	nodesFromDomains.forEach((node) => {
 		switch (node.protocol) {
 			case 'vless':
-				config.outbounds.push({
+				domain_outbounds.push({
 					type: node.protocol,
 					tag: node.name,
-					server: finalAddress,
-					server_port: parseInt(finalPort, 10),
+					server: node.address,
+					server_port: parseInt(node.port, 10),
 					uuid: edgetunnelUUID,
 					transport: {
 						type: 'ws',
@@ -246,97 +355,115 @@ function getSingBoxSubConfigTemplate(nodes) {
 				break;
 		}
 	});
+	singboxSubConfig.outbounds.push(...domain_outbounds);
 
-	// Add a selector outbound for dynamic node selection
-	config.outbounds.push({
+	const address_outbounds = [];
+	const addressIPGeolocationMap = new Map(
+		(await batchQueryIPGeolocation(nodesFromAddresses.map((node) => node.address))).map((node) => [node.query, node])
+	);
+	nodesFromAddresses.forEach((node) => {
+		const ipGeo = addressIPGeolocationMap.get(node.address);
+		if (ipGeo && ipGeo.status === 'success') {
+			node.name = `${ipGeo.countryCode}_${node.address}`;
+		}
+		switch (node.protocol) {
+			case 'vless':
+				address_outbounds.push({
+					type: node.protocol,
+					tag: node.name,
+					server: node.address,
+					server_port: parseInt(node.port, 10),
+					uuid: edgetunnelUUID,
+					transport: {
+						type: 'ws',
+						path: edgetunnelPATH,
+						max_early_data: 2048,
+						early_data_header_name: 'Sec-WebSocket-Protocol',
+						headers: { host: edgetunnelHost },
+					},
+					tls: {
+						enabled: true,
+						server_name: edgetunnelHost,
+					},
+				});
+				break;
+			case 'trojan':
+				break;
+			default:
+				break;
+		}
+	});
+	singboxSubConfig.outbounds.push(...address_outbounds);
+
+	const link_outbounds = [];
+	const linkIPGeolocationMap = new Map(
+		(await batchQueryIPGeolocation(nodesFromLinks.map((node) => node.address))).map((node) => [node.query, node])
+	);
+	nodesFromLinks.forEach((node) => {
+		const ipGeo = linkIPGeolocationMap.get(node.address);
+		if (ipGeo && ipGeo.status === 'success') {
+			node.name = `${ipGeo.countryCode}_${node.address}`;
+		}
+		switch (node.protocol) {
+			case 'vless':
+				link_outbounds.push({
+					type: node.protocol,
+					tag: node.name,
+					server: node.address,
+					server_port: parseInt(node.port, 10),
+					uuid: edgetunnelUUID,
+					transport: {
+						type: 'ws',
+						path: edgetunnelPATH,
+						max_early_data: 2048,
+						early_data_header_name: 'Sec-WebSocket-Protocol',
+						headers: { host: edgetunnelHost },
+					},
+					tls: {
+						enabled: true,
+						server_name: edgetunnelHost,
+					},
+				});
+				break;
+			case 'trojan':
+				break;
+			default:
+				break;
+		}
+	});
+	singboxSubConfig.outbounds.push(...link_outbounds);
+
+	// =======================================
+
+	singboxSubConfig.outbounds.push({
 		type: 'selector',
 		tag: '节点选择',
-		outbounds: ['自动选择', 'edgetunnel', 'direct'],
+		outbounds: ['优选域名', '优选IP', '第三方优选', 'edgetunnel', 'direct'],
 	});
 
-	// Add a urltest outbound for optimal domain selection
-	config.outbounds.push({
+	singboxSubConfig.outbounds.push({
 		type: 'urltest',
-		tag: '自动选择',
-		outbounds: nodes.map((node) => node.name),
+		tag: '优选域名',
+		outbounds: domain_outbounds.map((outbound) => outbound.tag),
+		interrupt_exist_connections: false,
+	});
+
+	singboxSubConfig.outbounds.push({
+		type: 'urltest',
+		tag: '优选IP',
+		outbounds: address_outbounds.map((outbound) => outbound.tag),
+		interrupt_exist_connections: false,
+	});
+
+	singboxSubConfig.outbounds.push({
+		type: 'urltest',
+		tag: '第三方优选',
+		outbounds: link_outbounds.map((outbound) => outbound.tag),
 		interrupt_exist_connections: false,
 	});
 
 	// Return JSON string of configuration
-	return JSON.stringify(config, null, 4);
-}
-
-async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
-	const regex = /(vless|trojan):\/\/.*?@((?:\d{1,3}\.){3}\d{1,3}|\[?[0-9a-fA-F:]+\]?)(?::(\d+))?.*?#(.*)/;
-	const allNodes = [];
-
-	async function fetchAndParse(link) {
-		try {
-			const response = await fetch(link);
-			const lines = atob(await response.text())
-				.trim()
-				.split('\n');
-			lines.forEach((line) => {
-				const match = line.match(regex);
-				if (!match) return;
-				const [_, protocol, address, port, name] = match;
-				allNodes.push({ protocol, address, port, name });
-			});
-		} catch (error) {
-			console.log(`Error fetching or parsing link: ${link}`);
-		}
-	}
-
-	// Limit concurrent fetches
-	const pool = [];
-	for (let i = 0; i < links.length; i += concurrencyLimit) {
-		const batch = links.slice(i, i + concurrencyLimit).map((link) => fetchAndParse(link));
-		pool.push(Promise.all(batch)); // Process batch in parallel
-	}
-
-	await Promise.all(pool);
-
-	return allNodes;
-}
-
-async function parseNodesFromAddress(addresses) {
-	const allNodes = [];
-
-	const regex = /^(?<ip>(\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\])(:(?<port>\d+))?(#(?<name>.*))?$/;
-	addresses.forEach((address) => {
-		const match = address.match(regex);
-		if (match) {
-			const { ip, port, name } = match.groups;
-			const node = {
-				protocol: 'vless',
-				address: ip,
-				port: port || '443',
-				name: name || ip,
-			};
-			allNodes.push(node);
-		}
-	});
-
-	return allNodes;
-}
-
-async function parseNodesFromDomain(domains) {
-	const allNodes = [];
-
-	domains.forEach((domain) => {
-		const [domainPart, portPart] = domain.split(':');
-
-		const node = {
-			protocol: 'vless',
-			address: domainPart,
-			port: portPart || '443',
-			name: domainPart,
-		};
-
-		allNodes.push(node);
-	});
-
-	return allNodes;
+	return JSON.stringify(singboxSubConfig, null, 4);
 }
 
 function getUsage(request) {
@@ -362,6 +489,8 @@ Supported URL parameters:
     Specify if only return cloudflare standard ports (1 for yes, 0 for no, default is 0).
 - base64 (optional)
     Specify if the output should be base64 encoded (1 for yes, 0 for no, default is 1).
+- client (optional)
+    Specifies an additional client subscription format that is supported (e.g. 'singbox' for sing-box client, default is v2ray).
 
 Example usage:
 
@@ -370,6 +499,9 @@ Example usage:
 
 2. With parameters:
    ${url.protocol}//${currentHost}/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?host=example.com&path=/custom/path?ed=2048&addrtype=ip&cfport=1&base64=1
+
+3. Support sing-box client:
+   ${url.protocol}//${currentHost}/sub/9e57b9c1-79ce-4004-a8ea-5a8e804fda51?client=singbox
 
     `.trim();
 }
