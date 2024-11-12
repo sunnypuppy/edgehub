@@ -368,7 +368,7 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 	nodesFromAddresses.forEach((node) => {
 		const ipGeo = ipGeolocationMap.get(node.address);
 		if (ipGeo && ipGeo.status === 'success') {
-			node.name = `${ipGeo.countryCode}_${node.address}`;
+			node.name = `${ipGeo.countryCode}_${ipGeo.regionName}_${node.address}`;
 			address_outbounds.push(node2SingBoxOutbound(node));
 		}
 	});
@@ -378,7 +378,7 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 	nodesFromLinks.forEach((node) => {
 		const ipGeo = ipGeolocationMap.get(node.address);
 		if (ipGeo && ipGeo.status === 'success') {
-			node.name = `${ipGeo.countryCode}_${node.address}`;
+			node.name = `${ipGeo.countryCode}_${ipGeo.regionName}_${node.address}`;
 			link_outbounds.push(node2SingBoxOutbound(node));
 		}
 	});
@@ -412,13 +412,69 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 	}
 
 	if (link_outbounds.length > 0) {
-		singboxSubConfig.outbounds.push({
-			type: 'urltest',
-			tag: '第三方优选',
-			outbounds: link_outbounds.map((outbound) => outbound.tag),
-			interrupt_exist_connections: false,
-		});
-		selector_outbounds.push('第三方优选');
+		// HK
+		const link_hk_outbounds = link_outbounds.filter((outbound) => outbound.tag.startsWith('HK_')).map((outbound) => outbound.tag);
+		if (link_hk_outbounds.length > 0) {
+			singboxSubConfig.outbounds.push({
+				type: 'urltest',
+				tag: '第三方优选-中国香港(HK)',
+				outbounds: link_hk_outbounds,
+				interrupt_exist_connections: false,
+			});
+			selector_outbounds.push('第三方优选-中国香港(HK)');
+		}
+		// US
+		const link_us_outbounds = link_outbounds.filter((outbound) => outbound.tag.startsWith('US_')).map((outbound) => outbound.tag);
+		if (link_us_outbounds.length > 0) {
+			singboxSubConfig.outbounds.push({
+				type: 'urltest',
+				tag: '第三方优选-美国(US)',
+				outbounds: link_us_outbounds,
+				interrupt_exist_connections: false,
+			});
+			selector_outbounds.push('第三方优选-美国(US)');
+		}
+		// JP
+		const link_jp_outbounds = link_outbounds.filter((outbound) => outbound.tag.startsWith('JP_')).map((outbound) => outbound.tag);
+		if (link_jp_outbounds.length > 0) {
+			singboxSubConfig.outbounds.push({
+				type: 'urltest',
+				tag: '第三方优选-日本(JP)',
+				outbounds: link_jp_outbounds,
+				interrupt_exist_connections: false,
+			});
+			selector_outbounds.push('第三方优选-日本(JP)');
+		}
+		// KR
+		const link_kr_outbounds = link_outbounds.filter((outbound) => outbound.tag.startsWith('KR_')).map((outbound) => outbound.tag);
+		if (link_kr_outbounds.length > 0) {
+			singboxSubConfig.outbounds.push({
+				type: 'urltest',
+				tag: '第三方优选-韩国(KR)',
+				outbounds: link_kr_outbounds,
+				interrupt_exist_connections: false,
+			});
+			selector_outbounds.push('第三方优选-韩国(KR)');
+		}
+
+		// Others
+		const link_others_outbounds = link_outbounds
+			.filter(
+				(outbound) =>
+					!outbound.tag.startsWith('HK_') &&
+					!outbound.tag.startsWith('US_') &&
+					!outbound.tag.startsWith('JP_') &&
+					!outbound.tag.startsWith('KR_')
+			)
+			.map((outbound) => outbound.tag);
+		if (link_others_outbounds.length > 0) {
+			singboxSubConfig.outbounds.push({
+				type: 'selector',
+				tag: '第三方优选-其他',
+				outbounds: link_others_outbounds,
+			});
+			selector_outbounds.push('第三方优选-其他');
+		}
 	}
 
 	selector_outbounds.push('edgetunnel');
