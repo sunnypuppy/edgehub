@@ -1,6 +1,7 @@
 let edgetunnelUUID = '9e57b9c1-79ce-4004-a8ea-5a8e804fda51';
 let edgetunnelHost = 'your.edgetunnel.host.com';
-let edgetunnelPATH = '/?ed=2048';
+let edgetunnelVLESSPATH = '/?ed=2048';
+let edgetunnelTrojanPATH = '/?ed=2048';
 let edgetunnelProtocol = 'vless';
 
 let addrSets = `
@@ -10,10 +11,10 @@ let addrSets = `
         "https://example.com/custom-path"
     ],
     "addresses": [
-        "127.0.0.1:8443#localhost_v4",
-        "127.0.0.1#localhost_v4_no_port",
+        "trojan:127.0.0.1:8443#localhost_v4",
+        "127.0.0.2#localhost_v4_no_port",
         "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:443#localhost_v6",
-        "[2001:0db8:85a3:0000:0000:8a2e:0370:7334]#localhost_v6_no_port" 
+        "trojan:[2001:0db8:85a3:0000:0000:8a2e:0371:7334]#localhost_v6_no_port"
     ],
     "domains": [
         "example.com",
@@ -32,7 +33,8 @@ export default {
 
 		edgetunnelUUID = env.EDGETUNNEL_UUID || edgetunnelUUID;
 		edgetunnelHost = url.searchParams.get('host') || env.EDGETUNNEL_HOST || edgetunnelHost;
-		edgetunnelPATH = url.searchParams.get('path') || env.EDGETUNNEL_PATH || edgetunnelPATH;
+		edgetunnelVLESSPATH = url.searchParams.get('vless_path') || env.EDGETUNNEL_VLESS_PATH || edgetunnelVLESSPATH;
+		edgetunnelTrojanPATH = url.searchParams.get('trojan_path') || env.EDGETUNNEL_TROJAN_PATH || edgetunnelTrojanPATH;
 		edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
 		addrSets = env.ADDR_SETS || addrSets;
@@ -81,7 +83,7 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 				const match = line.match(regex);
 				if (!match) return;
 				const [_, protocol, address, port, name] = match;
-				allNodes.push({ protocol: edgetunnelProtocol, address: address.trim().replace(/^\[|\]$/g, ''), port, name });
+				allNodes.push({ protocol, address, port, name });
 			});
 		} catch (error) {
 			console.log(`Error fetching or parsing link: ${link}`);
@@ -104,13 +106,13 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 function parseNodesFromAddress(addresses) {
 	const allNodes = [];
 
-	const regex = /^(?<ip>(\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\])(:(?<port>\d+))?(#(?<name>.*))?$/;
+	const regex = /^((?<protocol>\w+):)?(?<ip>(\d{1,3}\.){3}\d{1,3}|\[[0-9a-fA-F:]+\])(:(?<port>\d+))?(#(?<name>.*))?$/;
 	addresses.forEach((address) => {
 		const match = address.match(regex);
 		if (match) {
-			const { ip, port, name } = match.groups;
+			const { protocol, ip, port, name } = match.groups;
 			const node = {
-				protocol: edgetunnelProtocol,
+				protocol: protocol || edgetunnelProtocol,
 				address: ip,
 				port: port || '443',
 				name: name || ip,
@@ -215,14 +217,19 @@ async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 
 	const configs = await Promise.all(
 		filteredNodes.map((node) => {
-			const commonParams = `?security=tls&sni=${edgetunnelHost}&fp=random&alpn=h3&type=ws&path=${encodeURIComponent(edgetunnelPATH)}`;
 			const userInfo = `${edgetunnelUUID}${atob('QA==')}${node.address}:${node.port}`;
 
 			switch (node.protocol) {
 				case 'vless':
-					return `${node.protocol}://${userInfo}${commonParams}&encryption=none&host=${edgetunnelHost}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${edgetunnelHost}&fp=chrome&type=ws&path=${encodeURIComponent(
+						edgetunnelVLESSPATH
+					)}&host=${edgetunnelHost}#${node.name}`;
 				case 'trojan':
-					return `${node.protocol}://${userInfo}${commonParams}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${edgetunnelHost}&fp=chrome&type=ws&path=${encodeURIComponent(
+						edgetunnelTrojanPATH
+					)}&host=${edgetunnelHost}#${node.name}`;
+				case 'hysteria2':
+					return `${node.protocol}://${userInfo}/?sni=${edgetunnelHost}&insecure=1#${node.name}`;
 				default:
 					return '';
 			}
@@ -246,7 +253,7 @@ function node2SingBoxOutbound(node) {
 				},
 				transport: {
 					type: 'ws',
-					path: edgetunnelPATH,
+					path: edgetunnelVLESSPATH,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
 					headers: { host: edgetunnelHost },
@@ -254,7 +261,7 @@ function node2SingBoxOutbound(node) {
 			};
 		case 'trojan':
 			return {
-				type: 'trojan',
+				type: node.protocol,
 				tag: node.name,
 				server: node.address,
 				server_port: parseInt(node.port, 10),
@@ -265,10 +272,25 @@ function node2SingBoxOutbound(node) {
 				},
 				transport: {
 					type: 'ws',
-					path: edgetunnelPATH,
+					path: edgetunnelTrojanPATH,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
 					headers: { host: edgetunnelHost },
+				},
+			};
+		case 'hysteria2':
+			return {
+				type: node.protocol,
+				tag: node.name,
+				server: node.address,
+				server_port: parseInt(node.port, 10),
+				up_mbps: 100,
+				down_mbps: 100,
+				password: edgetunnelUUID,
+				tls: {
+					enabled: true,
+					server_name: edgetunnelHost,
+					insecure: true,
 				},
 			};
 		default:
@@ -358,21 +380,15 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 	nodesFromDomains.forEach((node) => domain_outbounds.push(node2SingBoxOutbound(node)));
 	singboxSubConfig.outbounds.push(...domain_outbounds);
 
+	const address_outbounds = [];
+	nodesFromAddresses.forEach((node) => address_outbounds.push(node2SingBoxOutbound(node)));
+	singboxSubConfig.outbounds.push(...address_outbounds);
+
 	const ipGeolocationMap = new Map(
 		(await batchQueryIPGeolocation([...nodesFromAddresses.map((node) => node.address), ...nodesFromLinks.map((node) => node.address)])).map(
 			(node) => [node.query, node]
 		)
 	);
-
-	const address_outbounds = [];
-	nodesFromAddresses.forEach((node) => {
-		const ipGeo = ipGeolocationMap.get(node.address);
-		if (ipGeo && ipGeo.status === 'success') {
-			node.name = `${ipGeo.countryCode}_${ipGeo.regionName}_${node.address}`;
-			address_outbounds.push(node2SingBoxOutbound(node));
-		}
-	});
-	singboxSubConfig.outbounds.push(...address_outbounds);
 
 	const link_outbounds = [];
 	nodesFromLinks.forEach((node) => {
