@@ -316,9 +316,9 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 			],
 			rules: [
 				{ outbound: 'any', server: 'dns_resolver' },
-				{ geosite: 'category-ads-all', server: 'dns_block', disable_cache: true },
-				{ geosite: 'geolocation-!cn', query_type: ['A', 'AAAA'], server: 'dns_fakeip' },
-				{ geosite: 'geolocation-!cn', server: 'dns_proxy' },
+				{ rule_set: 'geosite-category-ads-all', server: 'dns_block', disable_cache: true },
+				{ rule_set: 'geosite-geolocation-!cn', query_type: ['A', 'AAAA'], server: 'dns_fakeip' },
+				{ rule_set: 'geosite-geolocation-!cn', server: 'dns_proxy' },
 			],
 			final: 'dns_direct',
 			strategy: 'prefer_ipv4',
@@ -353,7 +353,7 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 			rules: [
 				{ protocol: 'dns', outbound: 'dns-out' },
 				{ ip_is_private: true, outbound: 'direct' },
-				{ rule_set: ['geoip-cn', 'geosite-cn'], outbound: 'direct' },
+				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
 			],
 			rule_set: [
 				{
@@ -364,15 +364,34 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 					download_detour: '节点选择',
 				},
 				{
-					tag: 'geosite-cn',
+					tag: 'geosite-geolocation-cn',
 					type: 'remote',
 					format: 'binary',
-					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs',
+					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-cn.srs',
+					download_detour: '节点选择',
+				},
+				{
+					tag: 'geosite-geolocation-!cn',
+					type: 'remote',
+					format: 'binary',
+					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs',
+					download_detour: '节点选择',
+				},
+				{
+					tag: 'geosite-category-ads-all',
+					type: 'remote',
+					format: 'binary',
+					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs',
 					download_detour: '节点选择',
 				},
 			],
 			final: '节点选择',
 			auto_detect_interface: true,
+		},
+		experimental: {
+			cache_file: {
+				enabled: true,
+			},
 		},
 	};
 
@@ -401,6 +420,8 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 	singboxSubConfig.outbounds.push(...link_outbounds);
 
 	const selector_outbounds = [];
+	selector_outbounds.push('edgetunnel');
+
 	singboxSubConfig.outbounds.push({
 		type: 'selector',
 		tag: '节点选择',
@@ -493,7 +514,6 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		}
 	}
 
-	selector_outbounds.push('edgetunnel');
 	selector_outbounds.push('direct');
 
 	// Return JSON string of configuration
