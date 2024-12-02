@@ -20,7 +20,12 @@ let addrSets = `
         "example.com",
         "www.example.com",
         "example.com:8443"
-    ]
+    ],
+	"privates":[
+		"vless://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?host=your.edgetunnel.host.com&path=/vless?ed%3D2048&sni=your.edgetunnel.host.com#test-vless",
+		"trojan://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?host=your.edgetunnel.host.com&path=/trojan?ed%3D2048&sni=your.edgetunnel.host.com#test-trojan",
+		"hysteria2://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?sni=your.edgetunnel.host.com#test-hy2"
+	]
 }
 `;
 
@@ -143,6 +148,27 @@ function parseNodesFromDomain(domains) {
 	return allNodes;
 }
 
+function parseNodesFromPrivateURIs(uris) {
+	const allNodes = uris.map((uri) => {
+		const url = new URL(uri);
+		const [uuid, addressWithPort] = url.username ? [url.username, url.host] : url.host.split('@');
+		const [address, port] = addressWithPort.split(':');
+
+		return {
+			protocol: url.protocol.slice(0, -1),
+			uuid: uuid || null,
+			address: address || null,
+			port: port ? parseInt(port, 10) : null,
+			name: url.hash.slice(1),
+			host: url.searchParams.get('host') || null,
+			path: url.searchParams.get('path') || null,
+			sni: url.searchParams.get('sni') || null,
+		};
+	});
+
+	return allNodes;
+}
+
 async function batchQueryIPGeolocation(ipList) {
 	const url = 'http://ip-api.com/batch';
 	const MAX_BATCH_SIZE = 100; // Maximum IPs per request
@@ -181,6 +207,7 @@ async function getSubConfig(options) {
 	let nodesFromLinks = [];
 	let nodesFromAddresses = [];
 	let nodesFromDomains = [];
+	let nodesFromPrivateURIs = [];
 
 	if (rawAddr.links && rawAddr.links.length > 0) {
 		nodesFromLinks = await parseNodesFromSubLink(rawAddr.links);
@@ -191,22 +218,26 @@ async function getSubConfig(options) {
 	if (rawAddr.domains && rawAddr.domains.length > 0) {
 		nodesFromDomains = parseNodesFromDomain(rawAddr.domains);
 	}
+	if (rawAddr.privates && rawAddr.privates.length > 0) {
+		nodesFromPrivateURIs = parseNodesFromPrivateURIs(rawAddr.privates);
+	}
 
 	switch (options.clienttype) {
 		case 'singbox':
-			return getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains);
+			return getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains, nodesFromPrivateURIs);
 
 		default:
-			return getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains);
+			return getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains, nodesFromPrivateURIs);
 	}
 }
 
-async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains) {
+async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains, nodesFromPrivateURIs) {
 	const uniqueNodes = new Map();
 
 	nodesFromLinks.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
 	nodesFromAddresses.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
 	nodesFromDomains.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
+	nodesFromPrivateURIs.forEach((node) => uniqueNodes.set(`${node.protocol}:${node.address}`, node));
 
 	const filteredNodes = Array.from(uniqueNodes.values()).filter((node) => {
 		if (cfHTTPPorts.has(node.port)) return false;
@@ -217,19 +248,19 @@ async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 
 	const configs = await Promise.all(
 		filteredNodes.map((node) => {
-			const userInfo = `${edgetunnelUUID}${atob('QA==')}${node.address}:${node.port}`;
+			const uuid = node.uuid || edgetunnelUUID;
+			const sni = node.sni || edgetunnelHost;
+			const path = encodeURIComponent(node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH));
+			const host = node.host || edgetunnelHost;
 
+			const userInfo = `${uuid}${atob('QA==')}${node.address}:${node.port}`;
 			switch (node.protocol) {
 				case 'vless':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${edgetunnelHost}&fp=chrome&type=ws&path=${encodeURIComponent(
-						edgetunnelVLESSPATH
-					)}&host=${edgetunnelHost}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'trojan':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${edgetunnelHost}&fp=chrome&type=ws&path=${encodeURIComponent(
-						edgetunnelTrojanPATH
-					)}&host=${edgetunnelHost}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'hysteria2':
-					return `${node.protocol}://${userInfo}/?sni=${edgetunnelHost}&insecure=1#${node.name}`;
+					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
 				default:
 					return '';
 			}
@@ -239,6 +270,11 @@ async function getDefaultSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 }
 
 function node2SingBoxOutbound(node) {
+	const uuid = node.uuid || edgetunnelUUID;
+	const sni = node.sni || edgetunnelHost;
+	const path = node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH);
+	const host = node.host || edgetunnelHost;
+
 	switch (node.protocol) {
 		case 'vless':
 			return {
@@ -246,17 +282,17 @@ function node2SingBoxOutbound(node) {
 				tag: node.name,
 				server: node.address,
 				server_port: parseInt(node.port, 10),
-				uuid: edgetunnelUUID,
+				uuid: uuid,
 				tls: {
 					enabled: true,
-					server_name: edgetunnelHost,
+					server_name: sni,
 				},
 				transport: {
 					type: 'ws',
-					path: edgetunnelVLESSPATH,
+					path: path,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
-					headers: { host: edgetunnelHost },
+					headers: { host: host },
 				},
 			};
 		case 'trojan':
@@ -265,17 +301,17 @@ function node2SingBoxOutbound(node) {
 				tag: node.name,
 				server: node.address,
 				server_port: parseInt(node.port, 10),
-				password: edgetunnelUUID,
+				password: uuid,
 				tls: {
 					enabled: true,
-					server_name: edgetunnelHost,
+					server_name: sni,
 				},
 				transport: {
 					type: 'ws',
-					path: edgetunnelTrojanPATH,
+					path: path,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
-					headers: { host: edgetunnelHost },
+					headers: { host: host },
 				},
 			};
 		case 'hysteria2':
@@ -286,10 +322,10 @@ function node2SingBoxOutbound(node) {
 				server_port: parseInt(node.port, 10),
 				up_mbps: 100,
 				down_mbps: 100,
-				password: edgetunnelUUID,
+				password: uuid,
 				tls: {
 					enabled: true,
-					server_name: edgetunnelHost,
+					server_name: sni,
 					insecure: true,
 				},
 			};
@@ -298,7 +334,7 @@ function node2SingBoxOutbound(node) {
 	}
 }
 
-async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains) {
+async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, nodesFromDomains, nodesFromPrivateURIs) {
 	// Base configuration template
 	const singboxSubConfig = {
 		log: {
@@ -395,6 +431,10 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		},
 	};
 
+	const private_outbounds = [];
+	nodesFromPrivateURIs.forEach((node) => private_outbounds.push(node2SingBoxOutbound(node)));
+	singboxSubConfig.outbounds.push(...private_outbounds);
+
 	const domain_outbounds = [];
 	nodesFromDomains.forEach((node) => domain_outbounds.push(node2SingBoxOutbound(node)));
 	singboxSubConfig.outbounds.push(...domain_outbounds);
@@ -427,6 +467,15 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		tag: '节点选择',
 		outbounds: selector_outbounds,
 	});
+
+	if (private_outbounds.length > 0) {
+		singboxSubConfig.outbounds.push({
+			type: 'selector',
+			tag: '自建节点',
+			outbounds: private_outbounds.map((outbound) => outbound.tag),
+		});
+		selector_outbounds.push('自建节点');
+	}
 
 	if (domain_outbounds.length > 0) {
 		singboxSubConfig.outbounds.push({
