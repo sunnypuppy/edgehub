@@ -387,6 +387,8 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		],
 		route: {
 			rules: [
+				{ clash_mode: 'global', outbound: '节点选择' },
+				{ clash_mode: 'direct', outbound: 'direct' },
 				{ protocol: 'dns', outbound: 'dns-out' },
 				{ ip_is_private: true, outbound: 'direct' },
 				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
