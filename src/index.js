@@ -392,6 +392,7 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 				{ ip_is_private: true, outbound: 'direct' },
 				{ clash_mode: 'Direct', outbound: 'direct' },
 				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
+				{ domain_suffix: ['cloudflare.com', 'cloudflare.dev'], outbound: 'direct' },
 			],
 			rule_set: [
 				{
