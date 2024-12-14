@@ -352,8 +352,6 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 			],
 			rules: [
 				{ outbound: 'any', server: 'dns_resolver' },
-				{ clash_mode: 'Direct', server: 'dns_resolver' },
-				{ clash_mode: 'Global', server: 'dns_proxy' },
 				{ rule_set: 'geosite-category-ads-all', server: 'dns_block', disable_cache: true },
 				{ rule_set: 'geosite-geolocation-!cn', query_type: ['A', 'AAAA'], server: 'dns_fakeip' },
 				{ rule_set: 'geosite-geolocation-!cn', server: 'dns_proxy' },
@@ -389,8 +387,6 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		],
 		route: {
 			rules: [
-				{ clash_mode: 'Global', outbound: '节点选择' },
-				{ clash_mode: 'Direct', outbound: 'direct' },
 				{ protocol: 'dns', outbound: 'dns-out' },
 				{ ip_is_private: true, outbound: 'direct' },
 				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
