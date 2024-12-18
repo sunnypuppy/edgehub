@@ -480,18 +480,20 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 
 	if (domain_outbounds.length > 0) {
 		singboxSubConfig.outbounds.push({
-			type: 'selector',
+			type: 'urltest',
 			tag: '优选域名',
 			outbounds: domain_outbounds.map((outbound) => outbound.tag),
+			interrupt_exist_connections: false,
 		});
 		selector_outbounds.push('优选域名');
 	}
 
 	if (address_outbounds.length > 0) {
 		singboxSubConfig.outbounds.push({
-			type: 'selector',
+			type: 'urltest',
 			tag: '优选IP',
 			outbounds: address_outbounds.map((outbound) => outbound.tag),
+			interrupt_exist_connections: false,
 		});
 		selector_outbounds.push('优选IP');
 	}
