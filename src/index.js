@@ -461,22 +461,11 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 	singboxSubConfig.outbounds.push(...link_outbounds);
 
 	const selector_outbounds = [];
-	selector_outbounds.push('edgetunnel');
-
 	singboxSubConfig.outbounds.push({
 		type: 'selector',
 		tag: '节点选择',
 		outbounds: selector_outbounds,
 	});
-
-	if (private_outbounds.length > 0) {
-		singboxSubConfig.outbounds.push({
-			type: 'selector',
-			tag: '自建节点',
-			outbounds: private_outbounds.map((outbound) => outbound.tag),
-		});
-		selector_outbounds.push('自建节点');
-	}
 
 	if (domain_outbounds.length > 0) {
 		singboxSubConfig.outbounds.push({
@@ -536,14 +525,12 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		const link_kr_outbounds = link_outbounds.filter((outbound) => outbound.tag.startsWith('KR_')).map((outbound) => outbound.tag);
 		if (link_kr_outbounds.length > 0) {
 			singboxSubConfig.outbounds.push({
-				type: 'urltest',
+				type: 'selector',
 				tag: '第三方优选-韩国(KR)',
 				outbounds: link_kr_outbounds,
-				interrupt_exist_connections: false,
 			});
 			selector_outbounds.push('第三方优选-韩国(KR)');
 		}
-
 		// Others
 		const link_others_outbounds = link_outbounds
 			.filter(
@@ -564,6 +551,16 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		}
 	}
 
+	if (private_outbounds.length > 0) {
+		singboxSubConfig.outbounds.push({
+			type: 'selector',
+			tag: '自建节点',
+			outbounds: private_outbounds.map((outbound) => outbound.tag),
+		});
+		selector_outbounds.push('自建节点');
+	}
+
+	selector_outbounds.push('edgetunnel');
 	selector_outbounds.push('direct');
 
 	// Return JSON string of configuration
