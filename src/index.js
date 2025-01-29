@@ -286,6 +286,7 @@ function node2SingBoxOutbound(node) {
 				tls: {
 					enabled: true,
 					server_name: sni,
+					insecure: true,
 				},
 				transport: {
 					type: 'ws',
@@ -305,6 +306,7 @@ function node2SingBoxOutbound(node) {
 				tls: {
 					enabled: true,
 					server_name: sni,
+					insecure: true,
 				},
 				transport: {
 					type: 'ws',
