@@ -374,12 +374,12 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 		],
 		outbounds: [
 			{ type: 'direct', tag: 'direct' },
-			{ type: 'dns', tag: 'dns-out' },
 			node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
 		],
 		route: {
 			rules: [
-				{ type: 'logical', mode: 'or', rules: [{ protocol: 'dns' }, { port: 53 }], outbound: 'dns-out' },
+				{ action: 'sniff' },
+				{ type: 'logical', mode: 'or', rules: [{ protocol: 'dns' }, { port: 53 }], action: 'hijack-dns' },
 				{ ip_is_private: true, outbound: 'direct' },
 				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
 				{ domain_suffix: ['cloudflare.com', 'cloudflare.dev'], outbound: 'direct' },
