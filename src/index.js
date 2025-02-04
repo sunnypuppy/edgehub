@@ -152,7 +152,9 @@ function parseNodesFromPrivateURIs(uris) {
 	const allNodes = uris.map((uri) => {
 		const url = new URL(uri);
 		const [uuid, addressWithPort] = url.username ? [url.username, url.host] : url.host.split('@');
-		const [address, port] = addressWithPort.split(':');
+		const lastColonIndex = addressWithPort.lastIndexOf(':');
+		const address = addressWithPort.slice(0, lastColonIndex);
+		const port = parseInt(addressWithPort.slice(lastColonIndex + 1), 10);
 
 		return {
 			protocol: url.protocol.slice(0, -1),
