@@ -21,11 +21,11 @@ let addrSets = `
         "www.example.com",
         "example.com:8443"
     ],
-	"privates":[
-		"vless://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?host=your.edgetunnel.host.com&path=/vless?ed%3D2048&sni=your.edgetunnel.host.com#test-vless",
-		"trojan://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?host=your.edgetunnel.host.com&path=/trojan?ed%3D2048&sni=your.edgetunnel.host.com#test-trojan",
-		"hysteria2://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?sni=your.edgetunnel.host.com#test-hy2"
-	]
+    "privates": [
+        "vless://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?host=your.edgetunnel.host.com&path=/vless?ed%3D2048&sni=your.edgetunnel.host.com#test-vless",
+        "trojan://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?host=your.edgetunnel.host.com&path=/trojan?ed%3D2048&sni=your.edgetunnel.host.com#test-trojan",
+        "hysteria2://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:443?sni=your.edgetunnel.host.com#test-hy2"
+    ]
 }
 `;
 
@@ -398,7 +398,7 @@ async function getSingBoxSubConfig(options, nodesFromLinks, nodesFromAddresses, 
 					format: 'binary',
 					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-cn.srs',
 					download_detour: '节点选择',
-				}
+				},
 			],
 			final: '节点选择',
 			auto_detect_interface: true,
