@@ -601,7 +601,7 @@ function renderConfigManagerHTML(configData) {
 
 						const previewCell = document.createElement('td');
 						const previewJson = JSON.stringify(config, null, 4);
-						previewCell.textContent = previewJson.length > 100 ? previewJson.substring(0, 100) + '...' : previewJson;
+						previewCell.textContent = previewJson.length > 80 ? previewJson.substring(0, 80) + '...' : previewJson;
 
 						const actionCell = document.createElement('td');
 
@@ -616,7 +616,7 @@ function renderConfigManagerHTML(configData) {
 						editButton.onclick = () => openEditModal(groupName, config);
 
 						const deleteButton = document.createElement('button');
-						deleteButton.className = 'btn btn-danger btn-sm';
+						deleteButton.className = 'btn btn-danger btn-sm me-2';
 						deleteButton.textContent = '删除';
 						deleteButton.onclick = () => {
 							delete configs[groupName];
