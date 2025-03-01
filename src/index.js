@@ -349,7 +349,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		},
 		dns: {
 			servers: [
-				{ tag: 'google', address: 'tls://8.8.8.8' },
+				{ tag: 'google', address: 'udp://8.8.8.8' },
 				{ tag: 'local', address: '223.5.5.5', detour: 'direct' },
 			],
 			rules: [
