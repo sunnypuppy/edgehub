@@ -142,7 +142,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					port: port ? parseInt(port, 10) : null,
 					name: url.hash ? decodeURIComponent(url.hash.slice(1)) : null,
 
-					uuid: replace_backend ? null : uuid,
+					uuid: replace_backend ? null : decodeURIComponent(uuid),
 					host: replace_backend ? null : url.searchParams.get('host'),
 					path: replace_backend ? null : url.searchParams.get('path'),
 					sni: replace_backend ? null : url.searchParams.get('sni'),
