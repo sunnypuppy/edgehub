@@ -131,7 +131,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 		.map((uri) => {
 			if (!uri.trim()) return null;
 			try {
-				const url = new URL(uri);
+				const url = new URL(decodeURIComponent(uri));
 				const [uuid, addressWithPort] = url.username ? [url.username, url.host] : url.host.split('@');
 				const lastColonIndex = addressWithPort.lastIndexOf(':');
 				const address = addressWithPort.slice(0, lastColonIndex);
