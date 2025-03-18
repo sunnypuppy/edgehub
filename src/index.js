@@ -259,9 +259,9 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 			const userInfo = `${uuid}${atob('QA==')}${node.address}:${node.port}`;
 			switch (node.protocol) {
 				case 'vless':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&type=ws&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'trojan':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&type=ws&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'hysteria2':
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
 				default:
