@@ -9,9 +9,9 @@
 - 支持配置第三方订阅链接
 - 提供自定义的过滤选项，包括 IPv6 和非标准端口过滤
 - 生成适用于多种客户端的订阅链接
-    - V2BOX
-    - Hiddify
-    - Sing-box (增加 client=singbox 请求参数)
+  - V2BOX
+  - Hiddify
+  - Sing-box (增加 client=singbox 请求参数)
 
 ## 本地部署
 
@@ -27,7 +27,7 @@
    ```
 4. 运行
    ```bash
-   npx wrangler dev 
+   npx wrangler dev
    ```
 
 ## Cloudflare Workers 部署
@@ -35,55 +35,52 @@
 1. 拷贝 [`/src/index.js`](https://github.com/sunnypuppy/edgehub/blob/master/src/index.js) 中的代码替换 workers 编辑器中内容，保存并部署。
 2. 配置环境变量
 
-    | 环境变量           | 必须     | 默认值              | 内容格式                                | 示例                                      |
-    |--------------------|--------|----------------------|-----------------------------------------|-------------------------------------------|
-    | `EDGETUNNEL_UUID`  | 是     | 无              | 一个唯一的用户 UUID 字符串               | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51`   |
-    | `EDGETUNNEL_HOST`  | 是     | 无              | 主机名或域名                            | `your.edgetunnel.host.com`               |
-    | `EDGETUNNEL_VLESS_PATH`  | 否     | `/?ed=2048`     | VLESS 协议代理路径                                | `/vless?ed=2048`                        |
-    | `EDGETUNNEL_TROJAN_PATH`  | 否     | `/?ed=2048`     | Trojan 协议代理路径                                | `/trojan?ed=2048`                        |
-    | `NODE_AGG_CONFIG`        | 否     | 无              | JSON 字符串，包含代理节点的配置信息       | 见下方示例                               |
+   | 环境变量                 | 必须 | 默认值      | 内容格式                            | 示例                                   |
+   | ------------------------ | ---- | ----------- | ----------------------------------- | -------------------------------------- |
+   | `EDGETUNNEL_UUID`        | 是   | 无          | 一个唯一的用户 UUID 字符串          | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51` |
+   | `EDGETUNNEL_HOST`        | 是   | 无          | 主机名或域名                        | `your.edgetunnel.host.com`             |
+   | `EDGETUNNEL_VLESS_PATH`  | 否   | `/?ed=2048` | VLESS 协议代理路径                  | `/vless?ed=2048`                       |
+   | `EDGETUNNEL_TROJAN_PATH` | 否   | `/?ed=2048` | Trojan 协议代理路径                 | `/trojan?ed=2048`                      |
+   | `NODE_AGG_CONFIG`        | 否   | 无          | JSON 字符串，包含代理节点的配置信息 | 见下方示例                             |
 
-    **NODE_AGG_CONFIG 示例值:**
+   **NODE_AGG_CONFIG 示例值:**
 
-    ```json
-    {
-        "CF优选订阅@xxx": {
-            "parse_type": "sub_link",
-            "url": "https://xxxxxx/sub?uuid=ffffffff-ffff-ffff-ffff-ffffffffffff&host=example.com",
-            "replace_backend": true
-        },
-        "xxx机场订阅": {
-            "parse_type": "sub_link",
-            "url": "https://xxx.com/xxx",
-            "headers": {
-                "user-agent": "v2rayN/7.7.1"
-            }
-        },
-        "CF优选IP": {
-            "parse_type": "cf_prefer_ip",
-            "outbounds_type": "urltest",
-            "datas": [
-                "[2606:4700::]:443#Phoenix_v6"
-            ]
-        },
-        "CF优选域名": {
-            "parse_type": "cf_prefer_domain",
-            "outbounds_type": "urltest",
-            "datas": [
-                "icook.hk",
-                "www.visa.com.sg",
-                "www.web.com"
-            ]
-        },
-        "Serv00": {
-            "parse_type": "raw_uri",
-            "datas": [
-                "hysteria2://ffffffff-ffff-ffff-ffff-ffffffffffff@s16.serv00.com:12345?sni=bing.com#s16-hy2",
-                "vless://ffffffff-ffff-ffff-ffff-ffffffffffff@s16.serv00.com:12345?host=s16.serv00.com&path=/vless&sni=s16.serv00.com#s16-vless"
-            ]
-        }
-    }
-    ```
+   ```json
+   {
+   	"cf_prefer_ip demo": {
+   		"parse_type": "cf_prefer_ip",
+   		"outbounds_type": "urltest",
+   		"datas": ["127.0.0.1", "127.0.0.2#custom-name", "127.0.0.3:12345#custom-port", "hysteria2://127.0.0.4:12345#custom-protocol"]
+   	},
+   	"cf_prefer_domain demo": {
+   		"parse_type": "cf_prefer_domain",
+   		"outbounds_type": "urltest",
+   		"datas": ["example.com", "custom-port.example.com:12345"]
+   	},
+   	"sub_link demo": {
+   		"parse_type": "sub_link",
+   		"outbounds_type": "urltest",
+   		"url": "https://your.sublink.com",
+   		"replace_backend": true
+   	},
+   	"sub_link demo-2": {
+   		"parse_type": "sub_link",
+   		"outbounds_type": "selector",
+   		"url": "https://your.sublink.com",
+   		"headers": {
+   			"user-agent": "v2rayN/7.7.1"
+   		}
+   	},
+   	"raw_uri demo": {
+   		"parse_type": "raw_uri",
+   		"outbounds_type": "selector",
+   		"datas": [
+   			"hysteria2://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:12345?sni=www.cloudflare.com#raw-uri-demo-hy2",
+   			"vless://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@[::1]:12345?host=www.cloudflare.com&path=/vless&sni=www.cloudflare.com#raw-uri-demo-v6-vless"
+   		]
+   	}
+   }
+   ```
 
 ## 使用
 
