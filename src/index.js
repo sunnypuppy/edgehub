@@ -354,6 +354,8 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 			],
 			rules: [
 				{ outbound: 'any', server: 'local' },
+				{ clash_mode: 'Direct', server: 'local' },
+				{ clash_mode: 'Global', server: 'google' },
 				{ rule_set: 'geosite-geolocation-cn', server: 'local' },
 			],
 		},
@@ -382,6 +384,8 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 				{ action: 'sniff' },
 				{ type: 'logical', mode: 'or', rules: [{ protocol: 'dns' }, { port: 53 }], action: 'hijack-dns' },
 				{ ip_is_private: true, outbound: 'direct' },
+				{ clash_mode: 'Direct', outbound: 'direct' },
+				{ clash_mode: 'Global', outbound: '节点选择' },
 				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
 				{ domain_suffix: ['cloudflare.com', 'cloudflare.dev'], outbound: 'direct' },
 			],
