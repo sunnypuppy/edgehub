@@ -132,7 +132,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 			if (!uri.trim()) return null;
 			try {
 				const url = new URL(decodeURIComponent(uri));
-				const [uuid, addressWithPort] = url.username ? [url.username, url.host] : url.host.split('@');
+				const [uuid, addressWithPort] = [url.username, url.host];
 				const lastColonIndex = addressWithPort.lastIndexOf(':');
 				const address = addressWithPort.slice(0, lastColonIndex);
 				const port = parseInt(addressWithPort.slice(lastColonIndex + 1), 10);
@@ -142,7 +142,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					port: port ? parseInt(port, 10) : null,
 					name: url.hash ? decodeURIComponent(url.hash.slice(1)) : null,
 
-					uuid: replace_backend ? null : decodeURIComponent(uuid),
+					uuid: replace_backend ? null : uuid && decodeURIComponent(uuid),
 					host: replace_backend ? null : url.searchParams.get('host'),
 					path: replace_backend ? null : url.searchParams.get('path'),
 					sni: replace_backend ? null : url.searchParams.get('sni'),
