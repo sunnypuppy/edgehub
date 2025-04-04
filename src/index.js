@@ -1,7 +1,7 @@
 let edgetunnelUUID = '9e57b9c1-79ce-4004-a8ea-5a8e804fda51';
 let edgetunnelHost = 'your.edgetunnel.host.com';
-let edgetunnelVLESSPATH = '/vless?ed=2048';
-let edgetunnelTrojanPATH = '/trojan?ed=2048';
+let edgetunnelVLESSPATH = '/vless';
+let edgetunnelTrojanPATH = '/trojan';
 let edgetunnelProtocol = 'vless';
 
 const cfHTTPPorts = new Set(['80', '8080', '8880', '2052', '2082', '2086', '2095']);
@@ -163,10 +163,6 @@ async function parseNodesFromGroups(groups) {
 
 		let node = [];
 		switch (group.parse_type) {
-			case 'raw_uri':
-				node = parseNodesFromURIs(group.datas);
-				node && nodes.push(...node);
-				break;
 			case 'cf_prefer_ip':
 				node = parseNodesFromAddress(group.datas);
 				node && nodes.push(...node);
@@ -180,7 +176,8 @@ async function parseNodesFromGroups(groups) {
 				node && nodes.push(...node);
 				break;
 			default:
-				console.warn(`Unsupported parse type: ${group.parse_type}`);
+				node = parseNodesFromURIs(group.datas);
+				node && nodes.push(...node);
 				break;
 		}
 
