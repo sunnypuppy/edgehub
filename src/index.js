@@ -7,7 +7,7 @@ let edgetunnelProtocol = 'vless';
 const cfHTTPPorts = new Set(['80', '8080', '8880', '2052', '2082', '2086', '2095']);
 const cfHTTPSPorts = new Set(['443', '2053', '2083', '2087', '2096', '8443']);
 
-let nodeAggConfig = {};
+let nodeAggConfig;
 
 export default {
 	async fetch(request, env, ctx) {
