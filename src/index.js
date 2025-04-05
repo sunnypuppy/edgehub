@@ -380,7 +380,6 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 			rules: [
 				{ action: 'sniff' },
 				{ type: 'logical', mode: 'or', rules: [{ protocol: 'dns' }, { port: 53 }], action: 'hijack-dns' },
-				{ ip_is_private: true, outbound: 'direct' },
 				{ clash_mode: 'Direct', outbound: 'direct' },
 				{ clash_mode: 'Global', outbound: '节点选择' },
 				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
