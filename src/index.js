@@ -1,7 +1,7 @@
 let edgetunnelUUID = '9e57b9c1-79ce-4004-a8ea-5a8e804fda51';
 let edgetunnelHost = 'your.edgetunnel.host.com';
-let edgetunnelVLESSPATH = '/vless?ed=2048';
-let edgetunnelTrojanPATH = '/trojan?ed=2048';
+let edgetunnelVLESSPATH = '/vless';
+let edgetunnelTrojanPATH = '/trojan';
 let edgetunnelProtocol = 'vless';
 
 const cfHTTPPorts = new Set(['80', '8080', '8880', '2052', '2082', '2086', '2095']);
