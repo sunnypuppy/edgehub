@@ -1,7 +1,7 @@
 let edgetunnelUUID = '9e57b9c1-79ce-4004-a8ea-5a8e804fda51';
 let edgetunnelHost = 'your.edgetunnel.host.com';
-let edgetunnelVLESSPATH = '/vless';
-let edgetunnelTrojanPATH = '/trojan';
+let edgetunnelVLESSPATH = '/vless?ed=2048';
+let edgetunnelTrojanPATH = '/trojan?ed=2048';
 let edgetunnelProtocol = 'vless';
 
 const cfHTTPPorts = new Set(['80', '8080', '8880', '2052', '2082', '2086', '2095']);
@@ -132,17 +132,13 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 			if (!uri.trim()) return null;
 			try {
 				const url = new URL(decodeURIComponent(uri));
-				const [uuid, addressWithPort] = [url.username, url.host];
-				const lastColonIndex = addressWithPort.lastIndexOf(':');
-				const address = addressWithPort.slice(0, lastColonIndex);
-				const port = parseInt(addressWithPort.slice(lastColonIndex + 1), 10);
 				return {
 					protocol: url.protocol.slice(0, -1),
-					address: address || null,
-					port: port ? parseInt(port, 10) : null,
-					name: url.hash ? decodeURIComponent(url.hash.slice(1)) : null,
+					address: url.hostname,
+					port: parseInt(url.port, 10),
+					name: url.hash.slice(1),
 
-					uuid: replace_backend ? null : uuid && decodeURIComponent(uuid),
+					uuid: replace_backend ? null : url.username,
 					host: replace_backend ? null : url.searchParams.get('host'),
 					path: replace_backend ? null : url.searchParams.get('path'),
 					sni: replace_backend ? null : url.searchParams.get('sni'),
@@ -270,16 +266,17 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 }
 
 function node2SingBoxOutbound(node) {
-	const uuid = node.uuid || edgetunnelUUID;
+	const uuid = decodeURIComponent(node.uuid || edgetunnelUUID);
 	const sni = node.sni || edgetunnelHost;
-	const path = node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH);
+	const path = node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH).split('?')[0];
 	const host = node.host || edgetunnelHost;
+	const tag = decodeURIComponent(node.name);
 
 	switch (node.protocol) {
 		case 'vless':
 			return {
 				type: node.protocol,
-				tag: node.name,
+				tag: tag,
 				server: node.address,
 				server_port: parseInt(node.port, 10),
 				uuid: uuid,
@@ -299,7 +296,7 @@ function node2SingBoxOutbound(node) {
 		case 'trojan':
 			return {
 				type: node.protocol,
-				tag: node.name,
+				tag: tag,
 				server: node.address,
 				server_port: parseInt(node.port, 10),
 				password: uuid,
@@ -319,7 +316,7 @@ function node2SingBoxOutbound(node) {
 		case 'hysteria2':
 			return {
 				type: node.protocol,
-				tag: node.name,
+				tag: tag,
 				server: node.address,
 				server_port: parseInt(node.port, 10),
 				up_mbps: 100,
