@@ -139,6 +139,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					name: url.hash.slice(1),
 
 					uuid: replace_backend ? null : url.username,
+					password: replace_backend ? null : url.password,
 					host: replace_backend ? null : url.searchParams.get('host'),
 					path: replace_backend ? null : url.searchParams.get('path'),
 					sni: replace_backend ? null : url.searchParams.get('sni'),
@@ -245,6 +246,7 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 	const configs = await Promise.all(
 		filteredNodes.map((node) => {
 			const uuid = node.uuid || edgetunnelUUID;
+			const password = node.password || '';
 			const sni = node.sni || edgetunnelHost;
 			const path = encodeURIComponent(node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH));
 			const host = node.host || edgetunnelHost;
@@ -257,6 +259,9 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'hysteria2':
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
+				case 'tuic':
+					const tuicUserInfo = `${uuid}:${password}${atob('QA==')}${node.address}:${node.port}`;
+					return `${node.protocol}://${tuicUserInfo}/?sni=${sni}&alpn=h3&congestion_control=cubic&insecure=1#${node.name}`;
 				default:
 					return '';
 			}
@@ -267,6 +272,7 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 
 function node2SingBoxOutbound(node) {
 	const uuid = decodeURIComponent(node.uuid || edgetunnelUUID);
+	const password = node.password || '';
 	const sni = node.sni || edgetunnelHost;
 	const path = node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH).split('?')[0];
 	const host = node.host || edgetunnelHost;
@@ -325,6 +331,21 @@ function node2SingBoxOutbound(node) {
 				tls: {
 					enabled: true,
 					server_name: sni,
+					insecure: true,
+				},
+			};
+		case 'tuic':
+			return {
+				type: node.protocol,
+				tag: tag,
+				server: node.address,
+				server_port: parseInt(node.port, 10),
+				uuid: uuid,
+				password: password,
+				tls: {
+					enabled: true,
+					server_name: sni,
+					alpn: ['h3'],
 					insecure: true,
 				},
 			};
