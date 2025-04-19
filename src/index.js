@@ -261,7 +261,7 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
 				case 'tuic':
 					const tuicUserInfo = `${uuid}:${password}${atob('QA==')}${node.address}:${node.port}`;
-					return `${node.protocol}://${tuicUserInfo}/?sni=${sni}&alpn=h3&congestion_control=cubic&insecure=1#${node.name}`;
+					return `${node.protocol}://${tuicUserInfo}/?sni=${sni}&alpn=h3&congestion_control=bbr&insecure=1#${node.name}`;
 				default:
 					return '';
 			}
@@ -342,6 +342,7 @@ function node2SingBoxOutbound(node) {
 				server_port: parseInt(node.port, 10),
 				uuid: uuid,
 				password: password,
+				congestion_control: 'bbr',
 				tls: {
 					enabled: true,
 					server_name: sni,
