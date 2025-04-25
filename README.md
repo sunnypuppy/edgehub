@@ -4,7 +4,7 @@
 
 ## 特性
 
-- 支持 VLESS/Trojan/Hysteria2 等多协议
+- 支持 VLESS/Trojan/VMess/Tuic/Hysteria2 等多协议
 - 汇聚来自多个第三方的代理节点
 - 支持配置第三方订阅链接
 - 提供自定义的过滤选项，包括 IPv6 和非标准端口过滤
@@ -37,13 +37,13 @@
 1. 拷贝 [`/src/index.js`](https://github.com/sunnypuppy/edgehub/blob/master/src/index.js) 中的代码替换 workers 编辑器中内容，保存并部署。
 2. 配置环境变量
 
-   | 环境变量                 | 必须 | 默认值      | 内容格式                            | 示例                                   |
-   | ------------------------ | ---- | ----------- | ----------------------------------- | -------------------------------------- |
-   | `EDGETUNNEL_UUID`        | 是   | 无          | 一个唯一的用户 UUID 字符串          | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51` |
-   | `EDGETUNNEL_HOST`        | 是   | 无          | 主机名或域名                        | `your.edgetunnel.host.com`             |
-   | `EDGETUNNEL_VLESS_PATH`  | 否   | `/vless` | VLESS 协议代理路径                  | `/vless`                       |
-   | `EDGETUNNEL_TROJAN_PATH` | 否   | `/trojan` | Trojan 协议代理路径                 | `/trojan`                      |
-   | `NODE_AGG_CONFIG`        | 否   | 无          | JSON 字符串，包含代理节点的配置信息 | 见下方示例                             |
+   | 环境变量                 | 必须 | 默认值    | 内容格式                            | 示例                                   |
+   | ------------------------ | ---- | --------- | ----------------------------------- | -------------------------------------- |
+   | `EDGETUNNEL_UUID`        | 是   | 无        | 一个唯一的用户 UUID 字符串          | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51` |
+   | `EDGETUNNEL_HOST`        | 是   | 无        | 主机名或域名                        | `your.edgetunnel.host.com`             |
+   | `EDGETUNNEL_VLESS_PATH`  | 否   | `/vless`  | VLESS 协议代理路径                  | `/vless`                               |
+   | `EDGETUNNEL_TROJAN_PATH` | 否   | `/trojan` | Trojan 协议代理路径                 | `/trojan`                              |
+   | `NODE_AGG_CONFIG`        | 否   | 无        | JSON 字符串，包含代理节点的配置信息 | 见下方示例                             |
 
    **NODE_AGG_CONFIG 示例值:**
 
@@ -77,8 +77,11 @@
    		"parse_type": "raw_uri",
    		"outbounds_type": "selector",
    		"datas": [
-   			"hysteria2://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@127.0.0.1:12345?sni=www.cloudflare.com#raw-uri-demo-hy2",
-   			"vless://9e57b9c1-79ce-4004-a8ea-5a8e804fda51@[::1]:12345?host=www.cloudflare.com&path=/vless&sni=www.cloudflare.com#raw-uri-demo-v6-vless"
+   			"hysteria2://127.0.0.1:8801#xxx-hy2",
+   			"vless://127.0.0.1:8802#xxx-vless",
+   			"tuic://[::1]:8803#xxx-tuic",
+   			"vmess://[::1]:8804#xxx-vmess",
+   			"trojan://[::1]:8805#xxx-trojan"
    		]
    	}
    }

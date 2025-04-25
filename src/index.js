@@ -248,7 +248,9 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 			const uuid = node.uuid || edgetunnelUUID;
 			const password = node.password || '';
 			const sni = node.sni || edgetunnelHost;
-			const path = encodeURIComponent(node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH));
+			const path = encodeURIComponent(
+				node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/')
+			);
 			const host = node.host || edgetunnelHost;
 
 			const userInfo = `${uuid}${atob('QA==')}${node.address}:${node.port}`;
@@ -256,6 +258,8 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 				case 'vless':
 					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'trojan':
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
+				case 'vmess':
 					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
 				case 'hysteria2':
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
@@ -274,12 +278,33 @@ function node2SingBoxOutbound(node) {
 	const uuid = decodeURIComponent(node.uuid || edgetunnelUUID);
 	const password = node.password || '';
 	const sni = node.sni || edgetunnelHost;
-	const path = node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : edgetunnelTrojanPATH).split('?')[0];
+	const path =
+		node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/').split('?')[0];
 	const host = node.host || edgetunnelHost;
 	const tag = decodeURIComponent(node.name);
 
 	switch (node.protocol) {
 		case 'vless':
+			return {
+				type: node.protocol,
+				tag: tag,
+				server: node.address,
+				server_port: parseInt(node.port, 10),
+				uuid: uuid,
+				tls: {
+					enabled: true,
+					server_name: sni,
+					insecure: true,
+				},
+				transport: {
+					type: 'ws',
+					path: path,
+					max_early_data: 2048,
+					early_data_header_name: 'Sec-WebSocket-Protocol',
+					headers: { host: host },
+				},
+			};
+		case 'vmess':
 			return {
 				type: node.protocol,
 				tag: tag,
@@ -432,7 +457,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 
 	const groups_outbounds = {};
 	Object.entries(nodesByGroup).forEach(([groupName, nodes]) => {
-		const group_outbounds = nodes.map(node2SingBoxOutbound);
+		const group_outbounds = nodes.map(node2SingBoxOutbound).filter(Boolean);
 		groups_outbounds[groupName] = group_outbounds;
 		singboxSubConfig.outbounds.push(...group_outbounds);
 	});
