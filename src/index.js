@@ -56,6 +56,17 @@ function getAddressType(address) {
 	return 'domain';
 }
 
+function base64EncodeUtf8(str) {
+	const bytes = new TextEncoder().encode(str);
+	return btoa(String.fromCharCode(...bytes));
+}
+
+function base64DecodeUtf8(base64Str) {
+	const binaryStr = atob(base64Str);
+	const bytes = Uint8Array.from(binaryStr, (c) => c.charCodeAt(0));
+	return new TextDecoder().decode(bytes);
+}
+
 async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 	const allNodes = [];
 
@@ -64,7 +75,7 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 			const response = await fetch(link.url, { headers: link.headers });
 			const responseText = await response.text();
 			if (responseText.match(/^[A-Za-z0-9+/]+={0,2}$/)) {
-				const lines = atob(responseText).trim().split('\n');
+				const lines = base64DecodeUtf8(responseText).trim().split('\n');
 				allNodes.push(...parseNodesFromURIs(lines, link.replace_backend));
 				return;
 			}
@@ -142,6 +153,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					password: replace_backend ? null : url.password,
 					host: replace_backend ? null : url.searchParams.get('host'),
 					path: replace_backend ? null : url.searchParams.get('path'),
+					type: replace_backend ? null : url.searchParams.get('type'),
 					sni: replace_backend ? null : url.searchParams.get('sni'),
 				};
 			} catch (error) {
@@ -251,16 +263,17 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 			const path = encodeURIComponent(
 				node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/')
 			);
+			const type = node.type || 'ws';
 			const host = node.host || edgetunnelHost;
 
 			const userInfo = `${uuid}${atob('QA==')}${node.address}:${node.port}`;
 			switch (node.protocol) {
 				case 'vless':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'trojan':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'vmess':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=ws&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'hysteria2':
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
 				case 'tuic':
@@ -281,6 +294,8 @@ function node2SingBoxOutbound(node) {
 	const path =
 		node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/').split('?')[0];
 	const host = node.host || edgetunnelHost;
+	if (node.type && node.type !== 'ws') return;
+	const type = 'ws';
 	const tag = decodeURIComponent(node.name);
 
 	switch (node.protocol) {
@@ -297,7 +312,7 @@ function node2SingBoxOutbound(node) {
 					insecure: true,
 				},
 				transport: {
-					type: 'ws',
+					type: type,
 					path: path,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
@@ -317,7 +332,7 @@ function node2SingBoxOutbound(node) {
 					insecure: true,
 				},
 				transport: {
-					type: 'ws',
+					type: type,
 					path: path,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
@@ -337,7 +352,7 @@ function node2SingBoxOutbound(node) {
 					insecure: true,
 				},
 				transport: {
-					type: 'ws',
+					type: type,
 					path: path,
 					max_early_data: 2048,
 					early_data_header_name: 'Sec-WebSocket-Protocol',
