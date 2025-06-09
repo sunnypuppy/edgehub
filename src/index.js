@@ -154,7 +154,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					host: replace_backend ? null : url.searchParams.get('host'),
 					path: replace_backend ? null : url.searchParams.get('path'),
 					type: replace_backend ? null : url.searchParams.get('type'),
-					sni: replace_backend ? null : url.searchParams.get('sni'),
+					sni: replace_backend ? null : url.searchParams.get('sni') || url.searchParams.get('host'),
 				};
 			} catch (error) {
 				console.error(error);
