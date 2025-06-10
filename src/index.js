@@ -151,10 +151,13 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 
 					uuid: replace_backend ? null : url.username,
 					password: replace_backend ? null : url.password,
-					host: replace_backend ? null : url.searchParams.get('host'),
+					host: replace_backend ? null : url.searchParams.get('host') || url.searchParams.get('sni'),
 					path: replace_backend ? null : url.searchParams.get('path'),
 					type: replace_backend ? null : url.searchParams.get('type'),
 					sni: replace_backend ? null : url.searchParams.get('sni') || url.searchParams.get('host'),
+					security: replace_backend ? null : url.searchParams.get('security'),
+					pbk: replace_backend ? null : url.searchParams.get('pbk'),
+					sid: replace_backend ? null : url.searchParams.get('sid'),
 				};
 			} catch (error) {
 				console.error(error);
@@ -269,6 +272,9 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 			const userInfo = `${uuid}${atob('QA==')}${node.address}:${node.port}`;
 			switch (node.protocol) {
 				case 'vless':
+					if (node.security === 'reality') {
+						return `${node.protocol}://${userInfo}/?security=reality&sni=${sni}&pbk=${node.pbk}&sid=${node.sid}&fp=chrome&flow=xtls-rprx-vision#${node.name}`;
+					}
 					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'trojan':
 					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
@@ -300,6 +306,29 @@ function node2SingBoxOutbound(node) {
 
 	switch (node.protocol) {
 		case 'vless':
+			if (node.security === 'reality') {
+				return {
+					type: node.protocol,
+					tag: tag,
+					server: node.address,
+					server_port: parseInt(node.port, 10),
+					uuid: uuid,
+					flow: 'xtls-rprx-vision',
+					tls: {
+						enabled: true,
+						server_name: sni,
+						reality: {
+							enabled: true,
+							public_key: node.pbk,
+							short_id: node.sid,
+						},
+						utls: {
+							enabled: true,
+							fingerprint: 'chrome',
+						},
+					},
+				};
+			}
 			return {
 				type: node.protocol,
 				tag: tag,
