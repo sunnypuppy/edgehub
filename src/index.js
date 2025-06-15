@@ -279,7 +279,25 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 				case 'trojan':
 					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'vmess':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
+					return (
+						`${node.protocol}://` +
+						base64EncodeUtf8(
+							JSON.stringify({
+								v: '2',
+								ps: `${node.name}`,
+								add: `${node.address}`,
+								port: `${node.port}`,
+								id: `${uuid}`,
+								net: `${type}`,
+								host: `${host}`,
+								path: `${decodeURIComponent(path)}`,
+								scy: 'auto',
+								tls: 'tls',
+								sni: `${sni}`,
+								fp: 'chrome',
+							})
+						)
+					);
 				case 'hysteria2':
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
 				case 'tuic':
