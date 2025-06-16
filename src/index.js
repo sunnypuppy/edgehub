@@ -273,11 +273,11 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 			switch (node.protocol) {
 				case 'vless':
 					if (node.security === 'reality') {
-						return `${node.protocol}://${userInfo}/?security=reality&sni=${sni}&pbk=${node.pbk}&sid=${node.sid}&fp=chrome&flow=xtls-rprx-vision#${node.name}`;
+						return `${node.protocol}://${userInfo}/?security=reality&sni=${sni}&pbk=${node.pbk}&sid=${node.sid}&fp=randomized&flow=xtls-rprx-vision#${node.name}`;
 					}
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=randomized&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'trojan':
-					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=chrome&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
+					return `${node.protocol}://${userInfo}/?security=tls&sni=${sni}&fp=randomized&allowInsecure=1&type=${type}&path=${path}&host=${host}#${node.name}`;
 				case 'vmess':
 					return (
 						`${node.protocol}://` +
@@ -294,7 +294,7 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 								scy: 'auto',
 								tls: 'tls',
 								sni: `${sni}`,
-								fp: 'chrome',
+								fp: 'randomized',
 							})
 						)
 					);
@@ -342,7 +342,7 @@ function node2SingBoxOutbound(node) {
 						},
 						utls: {
 							enabled: true,
-							fingerprint: 'chrome',
+							fingerprint: 'randomized',
 						},
 					},
 				};
