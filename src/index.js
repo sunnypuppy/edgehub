@@ -519,13 +519,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 
 	const groups_outbounds = {};
 	Object.entries(nodesByGroup).forEach(([groupName, nodes]) => {
-		const group_outbounds = nodes
-			.map(node2SingBoxOutbound)
-			.filter(Boolean)
-			.map((outbound) => ({
-				...outbound,
-				tag: outbound.tag.replace(new RegExp(`^${groupName}[-_]`), ''),
-			}));
+		const group_outbounds = nodes.map(node2SingBoxOutbound).filter(Boolean);
 		groups_outbounds[groupName] = group_outbounds;
 		singboxSubConfig.outbounds.push(...group_outbounds);
 	});
