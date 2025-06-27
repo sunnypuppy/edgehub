@@ -20,7 +20,7 @@ export default {
 			edgetunnelTrojanPATH = url.searchParams.get('trojan_path') || env.EDGETUNNEL_TROJAN_PATH || edgetunnelTrojanPATH;
 			edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
-			nodeAggConfig = nodeAggConfig || (env.NODE_AGG_CONFIG && JSON.parse(env.NODE_AGG_CONFIG));
+			await loadNodeAggConfig(env);
 
 			const options = {
 				addrtype: url.searchParams.get('addrtype'),
@@ -32,6 +32,8 @@ export default {
 			switch (url.pathname) {
 				case `/sub/${edgetunnelUUID}`: // uuid as the default sub passwd
 					return new Response(await getSubConfig(options));
+				case `/sub/${edgetunnelUUID}/config`:
+					return handleConfigRoute(request, env);
 				default:
 					return new Response(getUsage(request));
 			}
@@ -41,6 +43,28 @@ export default {
 		}
 	},
 };
+
+async function loadNodeAggConfig(env) {
+	if (env.KV_EDGEHUB) {
+		const raw = await env.KV_EDGEHUB.get("NODE_AGG_CONFIG");
+		if (raw) {
+			const parsed = JSON.parse(raw);
+			if (parsed && Object.keys(parsed).length > 0) {
+				nodeAggConfig = parsed;
+				return;
+			}
+		}
+	}
+	if (env.NODE_AGG_CONFIG) {
+		const parsedEnv = JSON.parse(env.NODE_AGG_CONFIG);
+		if (parsedEnv && Object.keys(parsedEnv).length > 0) {
+			nodeAggConfig = parsedEnv;
+			return;
+		}
+	}
+	if (nodeAggConfig && Object.keys(nodeAggConfig).length > 0) return;
+	nodeAggConfig = {};
+}
 
 function getAddressType(address) {
 	const ipv4Regex = /^((\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])\.){3}(\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])$/;
@@ -597,4 +621,315 @@ Please use the following format to access the configuration manager:
     ${url.protocol}//${currentHost}/sub/{your-edgetunnel-uuid}/config
 
     `.trim();
+}
+
+async function handleConfigRoute(request, env) {
+	const method = request.method.toUpperCase();
+
+	if (method === 'POST') {
+		if (!env.KV_EDGEHUB) {
+			return new Response('KV binding missing. Please bind KV to enable editing.', { status: 400 });
+		}
+		const data = await request.json();
+		await env.KV_EDGEHUB.put("NODE_AGG_CONFIG", JSON.stringify(data));
+		nodeAggConfig = data;
+		return new Response('OK', { status: 200 });
+	}
+
+	if (method === 'GET') {
+		const initial = JSON.stringify(nodeAggConfig || {}, null, 2);
+		const hasKV = !!env.KV_EDGEHUB;
+
+		const html = `
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>聚合节点配置编辑器</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #fff;
+        }
+
+        #editor,
+        #diffEditor {
+            height: 90vh;
+            width: 100vw;
+            display: none;
+            border-top: 1px solid #333;
+        }
+
+        #actions {
+            padding: 15px 20px;
+            text-align: center;
+            background-color: #252526;
+            border-bottom: 1px solid #444;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #fff;
+            transition: background-color 0.2s ease;
+        }
+
+        #editBtn {
+            background-color: #2d8cf0;
+        }
+
+        #editBtn:hover {
+            background-color: #1e6bb8;
+        }
+
+        #submitBtn {
+            background-color: #19be6b;
+        }
+
+        #submitBtn:hover {
+            background-color: #0f9d58;
+        }
+
+        #resetBtn {
+            background-color: #f56c6c;
+        }
+
+        #resetBtn:hover {
+            background-color: #dd6161;
+        }
+
+        #formatBtn {
+            background-color: #34c38f;
+        }
+
+        #formatBtn:hover {
+            background-color: #2ea97a;
+        }
+
+        #toggleDiffBtn {
+            background-color: #ab47bc;
+        }
+
+        #toggleDiffBtn:hover {
+            background-color: #9c27b0;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        #msg {
+            display: inline-block;
+            margin-left: 10px;
+            min-width: 160px;
+            font-size: 14px;
+            line-height: 32px;
+            color: #f0f0f0;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+</head>
+
+<body>
+    <div id="actions">
+        <button id="editBtn" onclick="toggleEdit()">编辑</button>
+        <button id="formatBtn" onclick="formatCode()">格式化</button>
+        <button id="resetBtn" onclick="reset()">重置</button>
+        <button id="toggleDiffBtn" onclick="toggleDiff()">对比</button>
+        <button id="submitBtn" onclick="submit()" ${hasKV ? '' : 'disabled title="未绑定 KV，无法提交配置"'}>提交</button>
+    </div>
+    <div id="editor"></div>
+    <div id="diffEditor"></div>
+
+    <script>
+        let editor, diffEditor;
+        let isEditing = false;
+        let tempData = ${initial};
+        const original = ${initial};
+        let originalModel, modifiedModel;
+
+        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: JSON.stringify(original, null, 2),
+                language: 'json',
+                theme: 'vs-dark',
+                readOnly: true,
+                automaticLayout: true
+            });
+            document.getElementById('editor').style.display = 'block';
+
+            diffEditor = monaco.editor.createDiffEditor(document.getElementById('diffEditor'), {
+                theme: 'vs-dark',
+                readOnly: true,
+                automaticLayout: true
+            });
+        });
+
+        function toggleEdit() {
+            isEditing = !isEditing;
+            editor.updateOptions({ readOnly: !isEditing });
+            const btn = document.getElementById('editBtn');
+            btn.textContent = isEditing ? '保存' : '编辑';
+
+            if (!isEditing) {
+                try {
+                    tempData = JSON.parse(editor.getValue());
+                    showMsg("已保存到临时变量", "green");
+                } catch (e) {
+                    showMsg("保存失败: JSON 无效", "red");
+                    isEditing = true;
+                    editor.updateOptions({ readOnly: false });
+                    btn.textContent = '保存';
+                }
+            }
+
+            updateButtonVisibility();
+        }
+
+        function formatCode() {
+            const value = editor.getValue();
+            try {
+                const parsed = JSON.parse(value);
+                editor.setValue(JSON.stringify(parsed, null, 2));
+                showMsg("格式化成功", "green");
+            } catch (err) {
+                showMsg("格式化失败: " + err.message, "red");
+            }
+        }
+
+        function reset() {
+            editor.setValue(JSON.stringify(original, null, 2));
+            showMsg("已重置为初始值", "gray");
+        }
+
+        function toggleDiff() {
+            const editorDiv = document.getElementById('editor');
+            const diffDiv = document.getElementById('diffEditor');
+            const btn = document.getElementById('toggleDiffBtn');
+
+            if (diffDiv.style.display === 'block') {
+                exitDiff();
+                btn.textContent = '对比';
+            } else {
+                showDiff();
+                btn.textContent = '返回编辑';
+            }
+
+            updateButtonVisibility();
+        }
+
+        function exitDiff() {
+            document.getElementById('editor').style.display = 'block';
+            document.getElementById('diffEditor').style.display = 'none';
+        }
+
+        function showDiff() {
+            document.getElementById('editor').style.display = 'none';
+            document.getElementById('diffEditor').style.display = 'block';
+
+            if (originalModel) originalModel.dispose();
+            if (modifiedModel) modifiedModel.dispose();
+            originalModel = monaco.editor.createModel(JSON.stringify(original, null, 2), 'json');
+            modifiedModel = monaco.editor.createModel(JSON.stringify(tempData, null, 2), 'json');
+            diffEditor.setModel({ original: originalModel, modified: modifiedModel });
+        }
+
+        async function submit() {
+            try {
+                if (JSON.stringify(tempData) === JSON.stringify(original)) {
+                    showMsg("配置信息一致，无需提交", "gray");
+                    return;
+                }
+
+                const res = await fetch(location.pathname, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(tempData)
+                });
+                if (res.ok) {
+                    showMsg("提交成功", "green");
+                } else {
+                    const err = await res.text();
+                    showMsg("提交失败: " + err, "red");
+                }
+            } catch (e) {
+                showMsg("提交异常: " + e.message, "red");
+            }
+        }
+
+        function showMsg(text, color) {
+            Toastify({
+                text: text,
+                duration: 3000, // auto close after 3s
+                close: true, // show close button
+                gravity: "top", // 'top' or 'bottom'
+                position: color === 'red' ? 'center' : 'right', // center for error, right for info
+                backgroundColor: color === 'red' ? "#e74c3c" : (color === 'green' ? "#27ae60" : "#34495e"),
+                stopOnFocus: true, // pause on hover
+            }).showToast();
+        }
+
+        function updateButtonVisibility() {
+            const formatBtn = document.getElementById('formatBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const submitBtn = document.getElementById('submitBtn');
+            const editBtn = document.getElementById('editBtn');
+            const toggleDiffBtn = document.getElementById('toggleDiffBtn');
+
+            const inDiff = diffEditor && diffEditor.getContainerDomNode().style.display === 'block';
+
+            editBtn.textContent = isEditing ? '保存' : '编辑';
+            editBtn.style.display = inDiff ? 'none' : 'block';
+
+            formatBtn.style.display = (isEditing && !inDiff) ? 'block' : 'none';
+            resetBtn.style.display = (isEditing && !inDiff) ? 'block' : 'none';
+
+            submitBtn.style.display = (inDiff || isEditing) ? 'none' : 'block';
+
+            toggleDiffBtn.textContent = inDiff ? '返回编辑' : '对比';
+            toggleDiffBtn.style.display = isEditing ? 'none' : 'block';
+        }
+
+        window.addEventListener('DOMContentLoaded', updateButtonVisibility);
+        window.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (isEditing) toggleEdit();
+            }
+
+            if (e.key === 'Escape' && diffEditor && diffEditor.getContainerDomNode().style.display === 'block') {
+                toggleDiff();
+            }
+        });
+    </script>
+</body>
+
+</html>
+`;
+
+		return new Response(html, {
+			headers: { 'Content-Type': 'text/html; charset=UTF-8' }
+		});
+	}
+
+	return new Response('Method Not Allowed', { status: 405 });
 }
