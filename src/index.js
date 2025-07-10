@@ -20,7 +20,7 @@ export default {
 			edgetunnelTrojanPATH = url.searchParams.get('trojan_path') || env.EDGETUNNEL_TROJAN_PATH || edgetunnelTrojanPATH;
 			edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
-			await loadNodeAggConfig(env);
+			await loadNodeAggConfig(request, env);
 
 			const options = {
 				addrtype: url.searchParams.get('addrtype'),
@@ -44,7 +44,16 @@ export default {
 	},
 };
 
-async function loadNodeAggConfig(env) {
+async function loadNodeAggConfig(request, env) {
+	const param = new URL(request.url).searchParams.get("nodeaggconfig");
+	if (param) {
+		const parsedParam = JSON.parse(param);
+		if (parsedParam && Object.keys(parsedParam).length > 0) {
+			nodeAggConfig = parsedParam;
+			return;
+		}
+	}
+
 	if (env.KV_EDGEHUB) {
 		const raw = await env.KV_EDGEHUB.get("NODE_AGG_CONFIG");
 		if (raw) {
