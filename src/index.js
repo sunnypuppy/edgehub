@@ -9,6 +9,8 @@ const cfHTTPSPorts = new Set(['443', '2053', '2083', '2087', '2096', '8443']);
 
 let nodeAggConfig;
 
+let clientType;
+
 export default {
 	async fetch(request, env, ctx) {
 		try {
@@ -26,8 +28,8 @@ export default {
 				addrtype: url.searchParams.get('addrtype'),
 				cfport: url.searchParams.get('cfport'),
 				base64: url.searchParams.get('base64'),
-				clienttype: url.searchParams.get('client'),
 			};
+			clientType = url.searchParams.get('client');
 
 			switch (url.pathname) {
 				case `/sub/${edgetunnelUUID}`: // uuid as the default sub passwd
@@ -267,7 +269,7 @@ async function batchQueryIPGeolocation(ipList) {
 
 async function getSubConfig(options) {
 	const nodesByGroup = await parseNodesFromGroups(nodeAggConfig);
-	switch (options.clienttype) {
+	switch (clientType) {
 		case 'singbox':
 			return getSingBoxSubConfig(options, nodesByGroup);
 
@@ -335,6 +337,8 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 						)
 					);
 				case 'hysteria2':
+					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
+				case 'anytls':
 					return `${node.protocol}://${userInfo}/?sni=${sni}&insecure=1#${node.name}`;
 				case 'tuic':
 					const tuicUserInfo = `${uuid}:${password}${atob('QA==')}${node.address}:${node.port}`;
@@ -470,6 +474,20 @@ function node2SingBoxOutbound(node) {
 					enabled: true,
 					server_name: sni,
 					alpn: ['h3'],
+					insecure: true,
+				},
+			};
+		case 'anytls':
+			if (clientType !== "singbox12") break;
+			return {
+				type: node.protocol,
+				tag: tag,
+				server: node.address,
+				server_port: parseInt(node.port, 10),
+				password: uuid,
+				tls: {
+					enabled: true,
+					server_name: sni,
 					insecure: true,
 				},
 			};
