@@ -23,9 +23,9 @@
    git clone https://github.com/sunnypuppy/edgehub.git
    cd edgehub
    ```
-3. 安装依赖
+3. 初始化 & 依赖安装
    ```bash
-   npm install
+   npm init -y && npm install
    ```
 4. 运行
    ```bash

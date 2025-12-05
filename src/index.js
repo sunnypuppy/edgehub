@@ -181,7 +181,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 				return {
 					protocol: url.protocol.slice(0, -1),
 					address: url.hostname,
-					port: parseInt(url.port, 10),
+					port: parseInt(url.port, 10) || 443,
 					name: url.hash.slice(1),
 
 					uuid: replace_backend ? null : url.username,
