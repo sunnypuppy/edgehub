@@ -294,7 +294,7 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 		return true;
 	});
 	// add default edge node
-	filteredNodes.push({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' });
+	// filteredNodes.push({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' });
 
 	const configs = await Promise.all(
 		filteredNodes.map((node) => {
@@ -534,7 +534,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		],
 		outbounds: [
 			{ type: 'direct', tag: 'direct' },
-			node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
+			// node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
 		],
 		route: {
 			rules: [
@@ -597,8 +597,8 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		}
 	}
 
-	selector_outbounds.push('edgetunnel');
-	selector_outbounds.push('direct');
+	// selector_outbounds.push('edgetunnel');
+	// selector_outbounds.push('direct');
 
 	// Return JSON string of configuration
 	return JSON.stringify(singboxSubConfig, null, 4);
@@ -641,7 +641,7 @@ async function getSingBox12SubConfig(options, nodesByGroup) {
 		],
 		outbounds: [
 			{ type: 'direct', tag: 'direct' },
-			node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
+			// node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
 		],
 		route: {
 			default_domain_resolver: "local",
@@ -705,8 +705,8 @@ async function getSingBox12SubConfig(options, nodesByGroup) {
 		}
 	}
 
-	selector_outbounds.push('edgetunnel');
-	selector_outbounds.push('direct');
+	// selector_outbounds.push('edgetunnel');
+	// selector_outbounds.push('direct');
 
 	// Return JSON string of configuration
 	return JSON.stringify(singboxSubConfig, null, 4);
