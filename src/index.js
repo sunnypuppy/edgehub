@@ -8,8 +8,7 @@ const cfHTTPPorts = new Set(['80', '8080', '8880', '2052', '2082', '2086', '2095
 const cfHTTPSPorts = new Set(['443', '2053', '2083', '2087', '2096', '8443']);
 
 let nodeAggConfig;
-
-let clientType;
+let clientType, clientVersion, clientUA;
 
 export default {
 	async fetch(request, env, ctx) {
@@ -22,6 +21,7 @@ export default {
 			edgetunnelTrojanPATH = url.searchParams.get('trojan_path') || env.EDGETUNNEL_TROJAN_PATH || edgetunnelTrojanPATH;
 			edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
+			await loadClientInfo(request);
 			await loadNodeAggConfig(request, env);
 
 			const options = {
@@ -29,7 +29,6 @@ export default {
 				cfport: url.searchParams.get('cfport'),
 				base64: url.searchParams.get('base64'),
 			};
-			clientType = url.searchParams.get('client');
 
 			switch (url.pathname) {
 				case `/sub/${edgetunnelUUID}`: // uuid as the default sub passwd
@@ -45,6 +44,32 @@ export default {
 		}
 	},
 };
+
+async function loadClientInfo(request) {
+	const url = new URL(request.url);
+
+	clientType = url.searchParams.get('client');
+	clientVersion = url.searchParams.get('client_version');
+	if (clientType && clientVersion) return;
+
+	clientUA = request.headers.get('user-agent');
+
+	// singbox
+	let match = clientUA.match(/sing-box (\d+\.\d+\.\d+)/i); // SFM/1.11.4 (Build 394; sing-box 1.11.4; language en_CN)
+	if (match) {
+		clientType = 'singbox';
+		clientVersion = match[1];
+		return;
+	}
+
+	// v2rayN
+	match = clientUA.match(/^v2rayN\/(\d+\.\d+\.\d+)/i); // v2rayN/7.16.5
+	if (match) {
+		clientType = 'v2rayn';
+		clientVersion = match[1];
+		return;
+	}
+}
 
 async function loadNodeAggConfig(request, env) {
 	const param = new URL(request.url).searchParams.get("nodeaggconfig");
@@ -273,9 +298,6 @@ async function getSubConfig(options) {
 		case 'singbox':
 			return getSingBoxSubConfig(options, nodesByGroup);
 
-		case 'singbox12':
-			return getSingBox12SubConfig(options, nodesByGroup);
-
 		default:
 			return getDefaultSubConfig(options, nodesByGroup);
 	}
@@ -349,6 +371,26 @@ async function getDefaultSubConfig(options, nodesByGroup) {
 		})
 	);
 	return options.base64 === '0' ? configs.join('\n') : Buffer.from(configs.join('\n'), 'utf-8').toString('base64');
+}
+
+function compareVersion(a, b, length = 3) {
+	const normalize = (v, len) => {
+		if (!v) return Array(len).fill(0);
+		return v.replace(/^[vV]/, '')
+			.split('.')
+			.map(n => parseInt(n, 10) || 0)
+			.concat(Array(len).fill(0))
+			.slice(0, len);
+	};
+
+	const pa = normalize(a, length);
+	const pb = normalize(b, length);
+
+	for (let i = 0; i < length; i++) {
+		if (pa[i] > pb[i]) return 1;  // a > b
+		if (pa[i] < pb[i]) return -1; // a < b
+	}
+	return 0; // a == b
 }
 
 function node2SingBoxOutbound(node) {
@@ -478,7 +520,7 @@ function node2SingBoxOutbound(node) {
 				},
 			};
 		case 'anytls':
-			if (clientType !== "singbox12") break;
+			if (compareVersion(clientVersion, "1.12.0") < 0) break;
 			return {
 				type: node.protocol,
 				tag: tag,
@@ -499,77 +541,88 @@ function node2SingBoxOutbound(node) {
 async function getSingBoxSubConfig(options, nodesByGroup) {
 	// Base configuration template
 	const singboxSubConfig = {
-		log: {
-			disabled: false,
-			level: 'info',
-			timestamp: true,
-		},
+		log: { disabled: false, level: 'info', timestamp: true },
 		dns: {
-			servers: [
-				{ tag: 'google', address: 'tls://8.8.8.8' },
-				{ tag: 'local', address: '223.5.5.5', detour: 'direct' },
-			],
+			servers: [],
 			rules: [
-				{ outbound: 'any', server: 'local' },
-				{ clash_mode: 'Direct', server: 'local' },
-				{ clash_mode: 'Global', server: 'google' },
-				{ rule_set: 'geosite-geolocation-cn', server: 'local' },
+				{ clash_mode: 'Global', server: 'remote_dns' },
+				{ clash_mode: 'Direct', server: 'direct_dns' },
+				{ domain_suffix: ["cdn.jsdelivr.net", "alidns.com", "doh.pub", "dot.pub", "360.cn", "onedns.net"], server: "direct_dns" },
+				{ rule_set: 'geosite-geolocation-cn', server: 'direct_dns' },
+				{ type: "logical", mode: "and", rules: [{ rule_set: "geosite-geolocation-!cn", invert: true }, { rule_set: "geoip-cn" }], server: "remote_dns", client_subnet: "114.114.114.114/24" },
 			],
+			final: 'remote_dns',
+			independent_cache: true,
 		},
-		ntp: {
-			enabled: true,
-			server: 'time.apple.com',
-			server_port: 123,
-			interval: '30m',
-			detour: 'direct',
-		},
-		inbounds: [
-			{
-				type: 'tun',
-				tag: 'tun-in',
-				address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
-				auto_route: true,
-				strict_route: false,
-			},
-		],
-		outbounds: [
-			{ type: 'direct', tag: 'direct' },
-			// node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
-		],
+		ntp: { enabled: true, server: 'time.apple.com', server_port: 123, interval: '30m', detour: 'direct' },
+		inbounds: [{ type: 'tun', tag: 'tun-in', address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'], auto_route: true, strict_route: true }],
+		outbounds: [{ type: 'direct', tag: 'direct' }],
 		route: {
 			rules: [
 				{ action: 'sniff' },
 				{ type: 'logical', mode: 'or', rules: [{ protocol: 'dns' }, { port: 53 }], action: 'hijack-dns' },
+				{ ip_is_private: true, outbound: 'direct' },
 				{ clash_mode: 'Direct', outbound: 'direct' },
 				{ clash_mode: 'Global', outbound: '节点选择' },
-				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
+				{ type: 'logical', mode: 'or', rules: [{ port: 853 }, { network: "udp", port: 443 }, { protocol: "stun" }], action: "reject" },
+				{ rule_set: 'geosite-geolocation-cn', outbound: 'direct' },
+				{ type: 'logical', mode: 'and', rules: [{ rule_set: "geoip-cn" }, { rule_set: "geosite-geolocation-!cn", invert: true }], outbound: "direct" },
 				{ domain_suffix: ['cloudflare.com', 'cloudflare.dev'], outbound: 'direct' },
 			],
 			rule_set: [
 				{
-					tag: 'geoip-cn',
-					type: 'remote',
-					format: 'binary',
-					url: 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs',
-					download_detour: '节点选择',
+					tag: 'geoip-cn', type: 'remote', format: 'binary', download_detour: 'direct',
+					url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
 				},
 				{
-					tag: 'geosite-geolocation-cn',
-					type: 'remote',
-					format: 'binary',
-					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-cn.srs',
-					download_detour: '节点选择',
+					tag: 'geosite-geolocation-cn', type: 'remote', format: 'binary', download_detour: 'direct',
+					url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-geolocation-cn.srs',
+				},
+				{
+					tag: 'geosite-geolocation-!cn', type: 'remote', format: 'binary', download_detour: 'direct',
+					url: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-geolocation-!cn.srs',
 				},
 			],
 			final: '节点选择',
 			auto_detect_interface: true,
 		},
-		experimental: {
-			cache_file: {
-				enabled: true,
-			},
-		},
+		experimental: { cache_file: { enabled: true, store_rdrc: true } },
 	};
+
+	if (compareVersion(clientVersion, '1.12.0') < 0) {
+		// singbox version < 1.12.0
+		singboxSubConfig.dns.servers = [
+			{ tag: 'remote_dns', address: 'tls://8.8.8.8' },
+			{ tag: 'direct_dns', address: '223.5.5.5', detour: 'direct' },
+		]
+	} else {
+		// singbox version >= 1.12.0
+		singboxSubConfig.dns.servers = [
+			{ tag: "remote_dns", server: "cloudflare-dns.com", path: "/dns-query", domain_resolver: "hosts_dns", type: "https", detour: '节点选择' },
+			{ tag: "direct_dns", server: "dns.alidns.com", path: "/dns-query", domain_resolver: "hosts_dns", type: "https" },
+			{
+				tag: "hosts_dns", type: "hosts", predefined: {
+					"dns.google": ["8.8.8.8", "8.8.4.4", "2001:4860:4860::8888", "2001:4860:4860::8844"],
+					"dns.alidns.com": ["223.5.5.5", "223.6.6.6", "2400:3200::1", "2400:3200:baba::1"],
+					"one.one.one.one": ["1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001"],
+					"1dot1dot1dot1.cloudflare-dns.com": ["1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001"],
+					"cloudflare-dns.com": ["104.16.249.249", "104.16.248.249", "2606:4700::6810:f8f9", "2606:4700::6810:f9f9"],
+					"dns.cloudflare.com": ["104.16.132.229", "104.16.133.229", "2606:4700::6810:84e5", "2606:4700::6810:85e5"],
+					"dot.pub": ["1.12.12.12", "120.53.53.53"],
+					"doh.pub": ["1.12.12.12", "120.53.53.53"],
+					"dns.quad9.net": ["9.9.9.9", "149.112.112.112", "2620:fe::fe", "2620:fe::9"],
+					"dns.yandex.net": ["77.88.8.8", "77.88.8.1", "2a02:6b8::feed:0ff", "2a02:6b8:0:1::feed:0ff"],
+					"dns.sb": ["185.222.222.222", "2a09::"],
+					"dns.umbrella.com": ["208.67.220.220", "208.67.222.222", "2620:119:35::35", "2620:119:53::53"],
+					"dns.sse.cisco.com": ["208.67.220.220", "208.67.222.222", "2620:119:35::35", "2620:119:53::53"],
+					"engage.cloudflareclient.com": ["162.159.192.1", "2606:4700:d0::a29f:c001"]
+				},
+			},
+		]
+		singboxSubConfig.dns.rules.unshift({ action: "predefined", rcode: "NOTIMP", query_type: [64, 65] })
+		singboxSubConfig.dns.rules.push({ ip_accept_any: true, server: "hosts_dns" })
+		singboxSubConfig.route['default_domain_resolver'] = 'direct_dns';
+	}
 
 	const groups_outbounds = {};
 	Object.entries(nodesByGroup).forEach(([groupName, nodes]) => {
@@ -596,117 +649,6 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 			selector_outbounds.push(groupName);
 		}
 	}
-
-	// selector_outbounds.push('edgetunnel');
-	// selector_outbounds.push('direct');
-
-	// Return JSON string of configuration
-	return JSON.stringify(singboxSubConfig, null, 4);
-}
-
-async function getSingBox12SubConfig(options, nodesByGroup) {
-	// Base configuration template
-	const singboxSubConfig = {
-		log: {
-			disabled: false,
-			level: 'info',
-			timestamp: true,
-		},
-		dns: {
-			servers: [
-				{ tag: 'google', "type": "tls", "server": "8.8.8.8" },
-				{ tag: 'local', "type": "udp", "server": '223.5.5.5' },
-			],
-			rules: [
-				{ clash_mode: 'Direct', server: 'local' },
-				{ clash_mode: 'Global', server: 'google' },
-				{ rule_set: 'geosite-geolocation-cn', server: 'local' },
-			],
-		},
-		ntp: {
-			enabled: true,
-			server: 'time.apple.com',
-			server_port: 123,
-			interval: '30m',
-			detour: 'direct',
-		},
-		inbounds: [
-			{
-				type: 'tun',
-				tag: 'tun-in',
-				address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'],
-				auto_route: true,
-				strict_route: false,
-			},
-		],
-		outbounds: [
-			{ type: 'direct', tag: 'direct' },
-			// node2SingBoxOutbound({ protocol: edgetunnelProtocol, address: edgetunnelHost, port: '443', name: 'edgetunnel' }),
-		],
-		route: {
-			default_domain_resolver: "local",
-			rules: [
-				{ action: 'sniff' },
-				{ type: 'logical', mode: 'or', rules: [{ protocol: 'dns' }, { port: 53 }], action: 'hijack-dns' },
-				{ clash_mode: 'Direct', outbound: 'direct' },
-				{ clash_mode: 'Global', outbound: '节点选择' },
-				{ rule_set: ['geoip-cn', 'geosite-geolocation-cn'], outbound: 'direct' },
-				{ domain_suffix: ['cloudflare.com', 'cloudflare.dev'], outbound: 'direct' },
-			],
-			rule_set: [
-				{
-					tag: 'geoip-cn',
-					type: 'remote',
-					format: 'binary',
-					url: 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs',
-					download_detour: '节点选择',
-				},
-				{
-					tag: 'geosite-geolocation-cn',
-					type: 'remote',
-					format: 'binary',
-					url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-cn.srs',
-					download_detour: '节点选择',
-				},
-			],
-			final: '节点选择',
-			auto_detect_interface: true,
-		},
-		experimental: {
-			cache_file: {
-				enabled: true,
-			},
-		},
-	};
-
-	const groups_outbounds = {};
-	Object.entries(nodesByGroup).forEach(([groupName, nodes]) => {
-		const group_outbounds = nodes.map(node2SingBoxOutbound).filter(Boolean);
-		groups_outbounds[groupName] = group_outbounds;
-		singboxSubConfig.outbounds.push(...group_outbounds);
-	});
-
-	const selector_outbounds = [];
-	singboxSubConfig.outbounds.push({
-		type: 'selector',
-		tag: '节点选择',
-		outbounds: selector_outbounds,
-	});
-
-	for (let groupName in groups_outbounds) {
-		const group_outbounds = groups_outbounds[groupName];
-		if (group_outbounds.length > 0) {
-			singboxSubConfig.outbounds.push({
-				type: nodeAggConfig[groupName].outbounds_type || 'selector',
-				tag: groupName,
-				outbounds: group_outbounds.map((outbound) => outbound.tag),
-			});
-			selector_outbounds.push(groupName);
-		}
-	}
-
-	// selector_outbounds.push('edgetunnel');
-	// selector_outbounds.push('direct');
 
 	// Return JSON string of configuration
 	return JSON.stringify(singboxSubConfig, null, 4);

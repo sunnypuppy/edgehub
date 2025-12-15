@@ -1,0 +1,24 @@
+{
+  "name": "edgehub",
+  "version": "1.0.0",
+  "description": "**EdgeHub** 是一个多协议代理节点汇聚工具，旨在为用户提供更便捷的代理节点订阅链接。它支持从多个第三方来源聚合节点信息，并生成适配多客户端的订阅链接。",
+  "main": "vitest.config.js",
+  "directories": {
+    "test": "test"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunnypuppy/edgehub.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sunnypuppy/edgehub/issues"
+  },
+  "homepage": "https://github.com/sunnypuppy/edgehub#readme"
+}
