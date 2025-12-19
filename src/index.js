@@ -551,7 +551,6 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 				{ rule_set: 'geosite-geolocation-cn', server: 'direct_dns' },
 				{ type: "logical", mode: "and", rules: [{ rule_set: "geosite-geolocation-!cn", invert: true }, { rule_set: "geoip-cn" }], server: "remote_dns", client_subnet: "114.114.114.114/24" },
 			],
-			final: 'remote_dns',
 			independent_cache: true,
 		},
 		ntp: { enabled: true, server: 'time.apple.com', server_port: 123, interval: '30m', detour: 'direct' },
@@ -595,6 +594,8 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 			{ tag: 'remote_dns', address: 'tls://8.8.8.8' },
 			{ tag: 'direct_dns', address: '223.5.5.5', detour: 'direct' },
 		]
+		// singboxSubConfig.dns.rules.unshift({ outbound: "any", server: "direct_dns" })
+		singboxSubConfig.dns.rules.push({ outbound: "any", server: "direct_dns" })
 	} else {
 		// singbox version >= 1.12.0
 		singboxSubConfig.dns.servers = [
