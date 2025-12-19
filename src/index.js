@@ -554,7 +554,8 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 			independent_cache: true,
 		},
 		ntp: { enabled: true, server: 'time.apple.com', server_port: 123, interval: '30m', detour: 'direct' },
-		inbounds: [{ type: 'tun', tag: 'tun-in', address: ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'], auto_route: true, strict_route: true }],
+		inbounds: [{ type: 'tun', tag: 'tun-in', address: ['172.19.0.1/30'], auto_route: true, strict_route: true }],
+		// inbounds: [{ type: 'mixed', tag: 'mixed-in', listen: "127.0.0.1", listen_port: 60808, set_system_proxy: true }],
 		outbounds: [{ type: 'direct', tag: 'direct' }],
 		route: {
 			rules: [
