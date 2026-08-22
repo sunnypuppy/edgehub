@@ -134,11 +134,11 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 		try {
 			const response = await fetch(link.url, { headers: link.headers });
 			const responseText = await response.text();
-			if (responseText.match(/^[A-Za-z0-9+/]+={0,2}$/)) {
-				const lines = base64DecodeUtf8(responseText).trim().split('\n');
-				allNodes.push(...parseNodesFromURIs(lines, link.replace_backend));
-				return;
-			}
+			const content = responseText.match(/^[A-Za-z0-9+/]+={0,2}$/)
+				? base64DecodeUtf8(responseText)
+				: responseText
+			const lines = content.trim().split('\n');
+			allNodes.push(...parseNodesFromURIs(lines, link.replace_backend));
 		} catch (error) {
 			console.error(error);
 		}
