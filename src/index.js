@@ -13,12 +13,17 @@ let clientType, clientVersion, clientUA;
 export default {
 	async fetch(request, env, ctx) {
 		try {
-			const url = new URL(request.url);
+			const url = new URL(decodeURIComponent(request.url));
 
 			edgetunnelUUID = env.EDGETUNNEL_UUID || edgetunnelUUID;
 			edgetunnelHost = url.searchParams.get('host') || env.EDGETUNNEL_HOST || edgetunnelHost;
-			edgetunnelVLESSPATH = url.searchParams.get('vless_path') || env.EDGETUNNEL_VLESS_PATH || edgetunnelVLESSPATH;
-			edgetunnelTrojanPATH = url.searchParams.get('trojan_path') || env.EDGETUNNEL_TROJAN_PATH || edgetunnelTrojanPATH;
+			const proxyip = url.searchParams.get('proxyip');
+			edgetunnelVLESSPATH =
+				url.searchParams.get('vless_path') ||
+				(proxyip ? `/vless?proxyip=${encodeURIComponent(proxyip)}&ed=2048` : env.EDGETUNNEL_VLESS_PATH || '/vless?ed=2048');
+			edgetunnelTrojanPATH =
+				url.searchParams.get('trojan_path') ||
+				(proxyip ? `/trojan?proxyip=${encodeURIComponent(proxyip)}&ed=2048` : env.EDGETUNNEL_TROJAN_PATH || '/trojan?ed=2048');
 			edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
 			await loadClientInfo(request);
@@ -46,7 +51,7 @@ export default {
 };
 
 async function loadClientInfo(request) {
-	const url = new URL(request.url);
+	const url = new URL(decodeURIComponent(request.url));
 
 	clientType = url.searchParams.get('client');
 	clientVersion = url.searchParams.get('client_version');
@@ -72,7 +77,7 @@ async function loadClientInfo(request) {
 }
 
 async function loadNodeAggConfig(request, env) {
-	const param = new URL(request.url).searchParams.get("nodeaggconfig");
+	const param = new URL(decodeURIComponent(request.url)).searchParams.get("nodeaggconfig");
 	if (param) {
 		const parsedParam = JSON.parse(param);
 		if (parsedParam && Object.keys(parsedParam).length > 0) {
@@ -398,7 +403,7 @@ function node2SingBoxOutbound(node) {
 	const password = node.password || '';
 	const sni = node.sni || edgetunnelHost;
 	const path =
-		node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/').split('?')[0];
+		node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/');
 	const host = node.host || edgetunnelHost;
 	if (node.type && node.type !== 'ws') return;
 	const type = 'ws';
@@ -657,7 +662,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 }
 
 function getUsage(request) {
-	const url = new URL(request.url);
+	const url = new URL(decodeURIComponent(request.url));
 	const currentHost = url.host;
 
 	return `
@@ -671,6 +676,8 @@ Supported URL parameters:
     The domain of your edgetunnel.
 - vless_path (optional)
     Path to specify custom path for your edgetunnel vless protocol (default is /?ed=2048 ).
+- proxyip (optional)
+	Add proxyip parameter to specify a custom proxy IP for your edgetunnel (default is not set).
 - trojan_path (optional)
     Path to specify custom path for your edgetunnel trojan protocol (default is /?ed=2048 ).
 - protocol (optional)
