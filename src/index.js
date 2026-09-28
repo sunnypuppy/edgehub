@@ -547,44 +547,30 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		log: { disabled: false, level: 'info', timestamp: true },
 		dns: {
 			servers: [
-				{ tag: "remote_dns", server: "cloudflare-dns.com", path: "/dns-query", domain_resolver: "hosts_dns", type: "https", detour: '节点选择' },
-				{ tag: "direct_dns", server: "dns.alidns.com", path: "/dns-query", domain_resolver: "hosts_dns", type: "https" },
+				{ type: "https", tag: "remote_dns", server: "cloudflare-dns.com", domain_resolver: "hosts_dns", detour: '节点选择' },
+				{ type: "https", tag: "direct_dns", server: "dns.alidns.com", domain_resolver: "hosts_dns" },
 				{
 					tag: "hosts_dns", type: "hosts", predefined: {
-						"dns.google": ["8.8.8.8", "8.8.4.4", "2001:4860:4860::8888", "2001:4860:4860::8844"],
-						"dns.alidns.com": ["223.5.5.5", "223.6.6.6", "2400:3200::1", "2400:3200:baba::1"],
-						"one.one.one.one": ["1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001"],
-						"1dot1dot1dot1.cloudflare-dns.com": ["1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001"],
+						"dns.alidns.com": ["223.6.6.6", "223.5.5.5", "2400:3200::1", "2400:3200:baba::1"],
 						"cloudflare-dns.com": ["104.16.249.249", "104.16.248.249", "2606:4700::6810:f8f9", "2606:4700::6810:f9f9"],
-						"dns.cloudflare.com": ["104.16.132.229", "104.16.133.229", "2606:4700::6810:84e5", "2606:4700::6810:85e5"],
-						"dot.pub": ["1.12.12.12", "120.53.53.53"],
-						"doh.pub": ["1.12.12.12", "120.53.53.53"],
-						"dns.quad9.net": ["9.9.9.9", "149.112.112.112", "2620:fe::fe", "2620:fe::9"],
-						"dns.yandex.net": ["77.88.8.8", "77.88.8.1", "2a02:6b8::feed:0ff", "2a02:6b8:0:1::feed:0ff"],
-						"dns.sb": ["185.222.222.222", "2a09::"],
-						"dns.umbrella.com": ["208.67.220.220", "208.67.222.222", "2620:119:35::35", "2620:119:53::53"],
-						"dns.sse.cisco.com": ["208.67.220.220", "208.67.222.222", "2620:119:35::35", "2620:119:53::53"],
-						"engage.cloudflareclient.com": ["162.159.192.1", "2606:4700:d0::a29f:c001"]
 					},
 				},
 			],
 			rules: [
 				{ action: "predefined", rcode: "NOTIMP", query_type: [64, 65] },
 
-				{ clash_mode: 'Global', server: 'remote_dns' },
-				{ clash_mode: 'Direct', server: 'direct_dns' },
+				{ action: "route", clash_mode: 'Global', server: 'remote_dns' },
+				{ action: "route", clash_mode: 'Direct', server: 'direct_dns' },
 
-				{ domain_suffix: ["cdn.jsdelivr.net", "alidns.com", "doh.pub", "dot.pub", "360.cn", "onedns.net"], server: "direct_dns" },
-				{ action: "evaluate", server: "remote_dns" },
-				{ rule_set: 'geosite-geolocation-cn', server: 'direct_dns', match_response: true },
+				{ action: "route", domain_suffix: ["cdn.jsdelivr.net"], server: "direct_dns" },
+				{ action: "route", rule_set: 'geosite-geolocation-cn', server: 'direct_dns'},
 
 				{ action: "route", server: "remote_dns" },
 			]
 		},
 		http_clients: [{ tag: "default", detour: "节点选择" }],
 		ntp: { enabled: true, server: 'time.apple.com', server_port: 123, interval: '30m', detour: 'direct' },
-		inbounds: [{ type: 'tun', tag: 'tun-in', address: ['172.19.0.1/30'], auto_route: true, strict_route: true }],
-		// inbounds: [{ type: 'mixed', tag: 'mixed-in', listen: "127.0.0.1", listen_port: 60808, set_system_proxy: true }],
+		inbounds: [{ type: 'tun', tag: 'tun-in', address: ['172.19.0.1/30'], auto_route: true, strict_route: true, dns_mode: 'hijack' }],
 		outbounds: [{ type: 'direct', tag: 'direct' }],
 		route: {
 			default_http_client: "default",
