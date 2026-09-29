@@ -137,7 +137,7 @@ async function parseNodesFromSubLink(links, concurrencyLimit = 5) {
 
 	async function fetchAndParse(link) {
 		try {
-			const response = await fetch(link.url, { headers: link.headers });
+			const response = await fetch(link.url, { headers: link.headers, signal: AbortSignal.timeout(10_000) });
 			const responseText = await response.text();
 			const content = responseText.match(/^[A-Za-z0-9+/]+={0,2}$/)
 				? base64DecodeUtf8(responseText)
@@ -563,7 +563,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 				{ action: "route", clash_mode: 'Direct', server: 'direct_dns' },
 
 				{ action: "route", domain_suffix: ["cdn.jsdelivr.net"], server: "direct_dns" },
-				{ action: "route", rule_set: 'geosite-geolocation-cn', server: 'direct_dns'},
+				{ action: "route", rule_set: 'geosite-geolocation-cn', server: 'direct_dns' },
 
 				{ action: "route", server: "remote_dns" },
 			]
