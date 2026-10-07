@@ -3,6 +3,7 @@ let edgetunnelHost = 'your.edgetunnel.host.com';
 let edgetunnelVLESSPATH = '/vless?ed=2048';
 let edgetunnelTrojanPATH = '/trojan?ed=2048';
 let edgetunnelProtocol = 'vless';
+let mixedListenPort;
 
 const cfHTTPPorts = new Set(['80', '8080', '8880', '2052', '2082', '2086', '2095']);
 const cfHTTPSPorts = new Set(['443', '2053', '2083', '2087', '2096', '8443']);
@@ -17,6 +18,7 @@ export default {
 
 			edgetunnelUUID = env.EDGETUNNEL_UUID || edgetunnelUUID;
 			edgetunnelHost = url.searchParams.get('host') || env.EDGETUNNEL_HOST || edgetunnelHost;
+			mixedListenPort = url.searchParams.get('mixed_listen_port');
 			const proxyip = url.searchParams.get('proxyip');
 			edgetunnelVLESSPATH =
 				url.searchParams.get('vless_path') ||
@@ -604,6 +606,15 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		},
 		experimental: { cache_file: { enabled: true, store_dns: true } },
 	};
+
+	if (mixedListenPort) {
+		singboxSubConfig.inbounds.unshift({
+			type: 'mixed',
+			tag: 'mixed-in',
+			listen: "0.0.0.0",
+			listen_port: parseInt(mixedListenPort),
+		});
+	}
 
 	const groups_outbounds = {};
 	Object.entries(nodesByGroup).forEach(([groupName, nodes]) => {
