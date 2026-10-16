@@ -79,7 +79,7 @@ async function loadClientInfo(request) {
 	}
 
 	// clash or mihomo
-	match = clientUA.match(/(clash|mihomo).*?\/v(\d+(?:\.\d+){2,3})/i);
+	match = clientUA.match(/(clash|mihomo).*?\/v?(\d+(?:\.\d+){2,3})/i);
 	if (match) {
 		clientType = match[1].toLowerCase();
 		clientVersion = match[2];
@@ -776,37 +776,22 @@ async function getClashSubConfig(options, nodesByGroup) {
 
 		'dns': {
 			'enable': true,
-			'listen': '0.0.0.0:53',
 			'ipv6': false,
-			'use-hosts': true,
 			'enhanced-mode': 'fake-ip',
 			'fake-ip-range': '198.18.0.1/16',
 			'respect-rules': true,
-			'nameserver': [
-				'https://doh.pub/dns-query',
-				'https://dns.alidns.com/dns-query',
-			],
 			'default-nameserver': [
 				'223.5.5.5',
 				'8.8.8.8',
-				'system',
 			],
-			'fallback': [
-				'https://1.1.1.1/dns-query',
-				'https://8.8.8.8/dns-query',
-				'https://dns.cloudflare.com/dns-query',
+			"nameserver": [
+				"https://1.1.1.1/dns-query",
+				"https://8.8.8.8/dns-query"
 			],
-			'fallback-filter': {
-				'geoip': true,
-				'ipcidr': [
-					'240.0.0.0/4',
-					'0.0.0.0/32'
-				]
-			},
-			'proxy-server-nameserver': [
-				'https://dns.alidns.com/dns-query',
-				'tls://223.5.5.5:853',
-			],
+			"proxy-server-nameserver": [
+				"https://dns.alidns.com/dns-query",
+				"tls://223.5.5.5:853"
+			]
 		},
 
 		'rules': [
