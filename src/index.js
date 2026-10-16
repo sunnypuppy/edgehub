@@ -29,6 +29,7 @@ export default {
 			edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
 			await loadClientInfo(request);
+			console.log(`Client Type: ${clientType}, Client Version: ${clientVersion}, User-Agent: ${clientUA}`);
 			await loadNodeAggConfig(request, env);
 
 			const options = {
@@ -74,6 +75,14 @@ async function loadClientInfo(request) {
 	if (match) {
 		clientType = 'v2rayn';
 		clientVersion = match[1];
+		return;
+	}
+
+	// clash or mihomo
+	match = clientUA.match(/(clash|mihomo).*?\/v(\d+(?:\.\d+){2,3})/i);
+	if (match) {
+		clientType = match[1].toLowerCase();
+		clientVersion = match[2];
 		return;
 	}
 }
@@ -304,6 +313,10 @@ async function getSubConfig(options) {
 	switch (clientType) {
 		case 'singbox':
 			return getSingBoxSubConfig(options, nodesByGroup);
+
+		case 'clash':
+		case 'mihomo':
+			return getClashSubConfig(options, nodesByGroup);
 
 		default:
 			return getDefaultSubConfig(options, nodesByGroup);
@@ -634,7 +647,7 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		const group_outbounds = groups_outbounds[groupName];
 		if (group_outbounds.length > 0) {
 			singboxSubConfig.outbounds.push({
-				type: nodeAggConfig[groupName].outbounds_type || 'selector',
+				type: nodeAggConfig[groupName].outbounds_type && nodeAggConfig[groupName].outbounds_type.includes('test') ? 'urltest' : 'selector',
 				tag: groupName,
 				outbounds: group_outbounds.map((outbound) => outbound.tag),
 			});
@@ -643,7 +656,202 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 	}
 
 	// Return JSON string of configuration
-	return JSON.stringify(singboxSubConfig, null, 4);
+	return JSON.stringify(singboxSubConfig, null, 2);
+}
+
+function node2ClashProxy(node) {
+	const uuid = decodeURIComponent(node.uuid || edgetunnelUUID);
+	const password = node.password || '';
+	const sni = node.sni || edgetunnelHost;
+	const path = node.path || (node.protocol === 'vless' ? edgetunnelVLESSPATH : node.protocol === 'trojan' ? edgetunnelTrojanPATH : '/');
+	const host = node.host || edgetunnelHost;
+	if (node.type && node.type !== 'ws') return;
+	const type = 'ws';
+	const tag = decodeURIComponent(node.name);
+
+	switch (node.protocol) {
+		case 'vless':
+			if (node.security === 'reality') {
+				return {
+					'name': tag,
+					'type': node.protocol,
+					'server': node.address,
+					'port': parseInt(node.port, 10),
+					'uuid': uuid,
+					'flow': 'xtls-rprx-vision',
+					'tls': true,
+					'servername': sni,
+					'client-fingerprint': 'chrome',
+					'reality-opts': {
+						'public-key': node.pbk,
+						'short-id': node.sid,
+					},
+				};
+			}
+			return {
+				'name': tag,
+				'type': node.protocol,
+				'server': node.address,
+				'port': parseInt(node.port, 10),
+				'uuid': uuid,
+				'tls': true,
+				'servername': sni,
+				'skip-cert-verify': false,
+				'client-fingerprint': 'chrome',
+				'network': type,
+				'ws-opts': {
+					'path': path,
+					'headers': { 'host': host },
+					'max-early-data': 2048,
+					'early-data-header-name': 'Sec-WebSocket-Protocol',
+				},
+			};
+		case 'trojan':
+			return {
+				'name': tag,
+				'type': node.protocol,
+				'server': node.address,
+				'port': parseInt(node.port, 10),
+				'password': uuid,
+				'tls': true,
+				'servername': sni,
+				'skip-cert-verify': false,
+				'client-fingerprint': 'chrome',
+				'network': type,
+				'ws-opts': {
+					'path': path,
+					'headers': { 'host': host },
+					'max-early-data': 2048,
+					'early-data-header-name': 'Sec-WebSocket-Protocol',
+				},
+			};
+		case 'hysteria2':
+			return {
+				'name': tag,
+				'type': node.protocol,
+				'server': node.address,
+				'port': parseInt(node.port, 10),
+				'password': uuid,
+				'sni': sni,
+				'skip-cert-verify': true,
+				'udp': true,
+			};
+		default:
+			break;
+	}
+}
+
+async function getClashSubConfig(options, nodesByGroup) {
+	// config sample: https://github.com/MetaCubeX/mihomo/blob/Meta/docs/config.yaml
+	const clashSubConfig = {
+		'mode': 'rule',
+
+		'geox-url': {
+			'geoip': "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat",
+			'geosite': "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat",
+			'mmdb': "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb"
+		},
+		'geo-auto-update': false,
+		'geo-auto-update-interval': 24,
+
+		'log-level': 'info',
+
+		'external-controller': '0.0.0.0:9093',
+
+		'profile': {
+			'store-selected': true,
+			'fake-ip': true,
+		},
+
+		'unified-delay': true,
+		'tcp-concurrent': true,
+
+		'tun': {
+			'enabled': true,
+			'dns-hijack': [
+				'any:53',
+				'tcp://any:53'
+			],
+		},
+
+		'dns': {
+			'enable': true,
+			'listen': '0.0.0.0:53',
+			'ipv6': false,
+			'use-hosts': true,
+			'enhanced-mode': 'fake-ip',
+			'fake-ip-range': '198.18.0.1/16',
+			'respect-rules': true,
+			'nameserver': [
+				'https://doh.pub/dns-query',
+				'https://dns.alidns.com/dns-query',
+			],
+			'default-nameserver': [
+				'223.5.5.5',
+				'8.8.8.8',
+				'system',
+			],
+			'fallback': [
+				'https://1.1.1.1/dns-query',
+				'https://8.8.8.8/dns-query',
+				'https://dns.cloudflare.com/dns-query',
+			],
+			'fallback-filter': {
+				'geoip': true,
+				'ipcidr': [
+					'240.0.0.0/4',
+					'0.0.0.0/32'
+				]
+			},
+			'proxy-server-nameserver': [
+				'https://dns.alidns.com/dns-query',
+				'tls://223.5.5.5:853',
+			],
+		},
+
+		'rules': [
+			'DOMAIN-SUFFIX,cloudflare.com,DIRECT',
+			'DOMAIN-SUFFIX,cloudflare.dev,DIRECT',
+			'GEOIP,CN,DIRECT',
+			'MATCH,节点选择',
+		],
+	};
+
+	if (mixedListenPort) {
+		clashSubConfig['mixed-port'] = parseInt(mixedListenPort);
+		clashSubConfig['allow-lan'] = true;
+		clashSubConfig['bind-address'] = '*';
+	}
+
+	clashSubConfig['proxies'] = [];
+	const groupProxys = {};
+	Object.entries(nodesByGroup).forEach(([groupName, nodes]) => {
+		const proxys = nodes.map(node2ClashProxy).filter(Boolean);
+		groupProxys[groupName] = proxys;
+		clashSubConfig['proxies'].push(...proxys);
+	});
+
+	const selectorProxys = [];
+	clashSubConfig['proxy-groups'] = [
+		{
+			'name': '节点选择',
+			'type': 'select',
+			'proxies': selectorProxys,
+		},
+	];
+	for (let groupName in groupProxys) {
+		const proxys = groupProxys[groupName];
+		if (proxys.length > 0) {
+			selectorProxys.push(groupName);
+			clashSubConfig['proxy-groups'].push({
+				'name': groupName,
+				'type': nodeAggConfig[groupName].outbounds_type && nodeAggConfig[groupName].outbounds_type.includes('test') ? 'url-test' : 'select',
+				'proxies': proxys.map((proxy) => proxy.name),
+			});
+		}
+	}
+
+	return JSON.stringify(clashSubConfig, null, 2);
 }
 
 function getUsage(request) {

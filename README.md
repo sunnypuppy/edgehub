@@ -13,7 +13,8 @@
   - Hiddify
   - Karing
   - NekoBox
-  - Sing-box (增加 client=singbox 请求参数)
+  - Sing-box
+  - Clash / Mihomo
 
 ## 本地部署
 
