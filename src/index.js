@@ -220,7 +220,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 		.map((uri) => {
 			if (!uri.trim()) return null;
 			try {
-				const url = new URL(decodeURIComponent(uri));
+				const url = new URL(uri);
 				return {
 					protocol: url.protocol.slice(0, -1),
 					address: url.hostname,
@@ -230,7 +230,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					uuid: replace_backend ? null : url.username,
 					password: replace_backend ? null : url.password,
 					host: replace_backend ? null : url.searchParams.get('host') || url.searchParams.get('sni'),
-					path: replace_backend ? null : url.searchParams.get('path'),
+					path: replace_backend ? null : decodeURIComponent(url.searchParams.get('path')),
 					type: replace_backend ? null : url.searchParams.get('type'),
 					sni: replace_backend ? null : url.searchParams.get('sni') || url.searchParams.get('host'),
 					security: replace_backend ? null : url.searchParams.get('security'),
