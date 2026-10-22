@@ -1,7 +1,7 @@
 let edgetunnelUUID = '9e57b9c1-79ce-4004-a8ea-5a8e804fda51';
 let edgetunnelHost = 'your.edgetunnel.host.com';
-let edgetunnelVLESSPATH = '/vless?ed=2048';
-let edgetunnelTrojanPATH = '/trojan?ed=2048';
+let edgetunnelVLESSPATH = '/v?ed=2048';
+let edgetunnelTrojanPATH = '/t?ed=2048';
 let edgetunnelProtocol = 'vless';
 let mixedListenPort;
 
@@ -15,40 +15,42 @@ export default {
 	async fetch(request, env, ctx) {
 		try {
 			const url = new URL(decodeURIComponent(request.url));
+			const params = url.searchParams;
+			const get = (key) => params.get(key);
 
 			edgetunnelUUID = env.EDGETUNNEL_UUID || edgetunnelUUID;
-			edgetunnelHost = url.searchParams.get('host') || env.EDGETUNNEL_HOST || edgetunnelHost;
-			mixedListenPort = url.searchParams.get('mixed_listen_port');
-			const proxyip = url.searchParams.get('proxyip');
-			edgetunnelVLESSPATH =
-				url.searchParams.get('vless_path') ||
-				(proxyip ? `/vless?proxyip=${encodeURIComponent(proxyip)}&ed=2048` : env.EDGETUNNEL_VLESS_PATH || '/vless?ed=2048');
-			edgetunnelTrojanPATH =
-				url.searchParams.get('trojan_path') ||
-				(proxyip ? `/trojan?proxyip=${encodeURIComponent(proxyip)}&ed=2048` : env.EDGETUNNEL_TROJAN_PATH || '/trojan?ed=2048');
-			edgetunnelProtocol = url.searchParams.get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
+			edgetunnelHost = get('host') || env.EDGETUNNEL_HOST || edgetunnelHost;
+			mixedListenPort = get('mixed_listen_port');
+
+			const proxyip = get('proxyip');
+			const path = (param, envKey, fallback) =>
+				get(param) || (proxyip ? `${fallback}?proxyip=${encodeURIComponent(proxyip)}&ed=2048` : env[envKey] || `${fallback}?ed=2048`);
+
+			edgetunnelVLESSPATH = path('vless_path', 'EDGETUNNEL_VLESS_PATH', '/v');
+			edgetunnelTrojanPATH = path('trojan_path', 'EDGETUNNEL_TROJAN_PATH', '/t');
+			edgetunnelProtocol = get('protocol') || env.EDGETUNNEL_PROTOCOL || edgetunnelProtocol;
 
 			await loadClientInfo(request);
 			console.log(`Client Type: ${clientType}, Client Version: ${clientVersion}, User-Agent: ${clientUA}`);
+
 			await loadNodeAggConfig(request, env);
 
 			const options = {
-				addrtype: url.searchParams.get('addrtype'),
-				cfport: url.searchParams.get('cfport'),
-				base64: url.searchParams.get('base64'),
+				addrtype: get('addrtype'),
+				cfport: get('cfport'),
+				base64: get('base64'),
 			};
 
-			switch (url.pathname) {
-				case `/sub/${edgetunnelUUID}`: // uuid as the default sub passwd
-					return new Response(await getSubConfig(options));
-				case `/sub/${edgetunnelUUID}/config`:
-					return handleConfigRoute(request, env);
-				default:
-					return new Response(getUsage(request));
-			}
+			if (url.pathname === `/sub/${edgetunnelUUID}`)
+				return new Response(await getSubConfig(options));
+
+			if (url.pathname === `/sub/${edgetunnelUUID}/config`)
+				return handleConfigRoute(request, env);
+
+			return new Response(getUsage(request));
 		} catch (error) {
 			console.error(error);
-			return new Response(`Internal Server Error`);
+			return new Response('Internal Server Error');
 		}
 	},
 };
@@ -561,12 +563,12 @@ async function getSingBoxSubConfig(options, nodesByGroup) {
 		log: { disabled: false, level: 'info', timestamp: true },
 		dns: {
 			servers: [
-				{ type: "https", tag: "remote_dns", server: "cloudflare-dns.com", domain_resolver: "hosts_dns", detour: '节点选择' },
+				{ type: "https", tag: "remote_dns", server: "dns.google", domain_resolver: "hosts_dns", detour: '节点选择' },
 				{ type: "https", tag: "direct_dns", server: "dns.alidns.com", domain_resolver: "hosts_dns" },
 				{
 					tag: "hosts_dns", type: "hosts", predefined: {
 						"dns.alidns.com": ["223.6.6.6", "223.5.5.5", "2400:3200::1", "2400:3200:baba::1"],
-						"cloudflare-dns.com": ["104.16.249.249", "104.16.248.249", "2606:4700::6810:f8f9", "2606:4700::6810:f9f9"],
+						"dns.google": ["8.8.8.8", "8.8.4.4", "2001:4860:4860::8888", "2001:4860:4860::8844"],
 					},
 				},
 			],

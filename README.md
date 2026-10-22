@@ -42,8 +42,8 @@
    | ------------------------ | ---- | --------- | ----------------------------------- | -------------------------------------- |
    | `EDGETUNNEL_UUID`        | 是   | 无        | 一个唯一的用户 UUID 字符串          | `9e57b9c1-79ce-4004-a8ea-5a8e804fda51` |
    | `EDGETUNNEL_HOST`        | 是   | 无        | 主机名或域名                        | `your.edgetunnel.host.com`             |
-   | `EDGETUNNEL_VLESS_PATH`  | 否   | `/vless`  | VLESS 协议代理路径                  | `/vless`                               |
-   | `EDGETUNNEL_TROJAN_PATH` | 否   | `/trojan` | Trojan 协议代理路径                 | `/trojan`                              |
+   | `EDGETUNNEL_VLESS_PATH`  | 否   | `/v`      | VLESS 协议代理路径                  | `/v`                                   |
+   | `EDGETUNNEL_TROJAN_PATH` | 否   | `/t`      | Trojan 协议代理路径                 | `/t`                                   |
    | `NODE_AGG_CONFIG`        | 否   | 无        | JSON 字符串，包含代理节点的配置信息 | 见下方示例                             |
 
    **NODE_AGG_CONFIG 示例值:**
