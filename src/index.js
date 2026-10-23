@@ -14,7 +14,7 @@ let clientType, clientVersion, clientUA;
 export default {
 	async fetch(request, env, ctx) {
 		try {
-			const url = new URL(decodeURIComponent(request.url));
+			const url = new URL(request.url);
 			const params = url.searchParams;
 			const get = (key) => params.get(key);
 
@@ -230,7 +230,7 @@ function parseNodesFromURIs(uris, replace_backend = false) {
 					uuid: replace_backend ? null : url.username,
 					password: replace_backend ? null : url.password,
 					host: replace_backend ? null : url.searchParams.get('host') || url.searchParams.get('sni'),
-					path: replace_backend ? null : decodeURIComponent(url.searchParams.get('path')),
+					path: replace_backend ? null : decodeURIComponent(url.searchParams.get('path') || ''),
 					type: replace_backend ? null : url.searchParams.get('type'),
 					sni: replace_backend ? null : url.searchParams.get('sni') || url.searchParams.get('host'),
 					security: replace_backend ? null : url.searchParams.get('security'),
